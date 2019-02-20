@@ -1,0 +1,12 @@
+[package]
+name = "mavulator"
+version = "0.1.0"
+authors = ["tstellanova <tstellanova@users.noreply.github.com>"]
+edition = "2018"
+
+[dependencies]
+
+
+[dependencies.uorb-codec]
+#git = "https://github.com/tstellanova/rust-mavlink.git"
+path = "../uorb-codec"
