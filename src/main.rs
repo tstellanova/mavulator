@@ -64,9 +64,50 @@ fn gen_wrapped_gps_position_msg(state: &VehicleState) -> (UorbHeader, UorbMessag
     (hdr, msg)
 }
 
+
+fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
+    let timestamp = get_simulated_usec(state);
+    BatteryStatusData {
+        timestamp: timestamp,
+        voltage_v: 16.0,
+        voltage_filtered_v: 16.0,
+        current_a: 0.0,
+        current_filtered_a: 0.0,
+        average_current_a: 0.0,
+        discharged_mah: 0.0,
+        remaining: 10500.0,
+        scale: 1.0,
+        temperature: 25.0,
+        cell_count: 4,
+        connected: true,
+        system_source: true,
+        priority: 1,
+        capacity: 12000,
+        cycle_count: 5,
+        run_time_to_empty: 2350,
+        average_time_to_empty: 2350,
+        serial_number: 12345,
+        voltage_cell_v: [3.2, 3.2, 3.2, 3.2],
+        max_cell_voltage_delta: 3.2,
+        is_powering_off: false,
+        warning: 0,
+    }
+}
+
+fn gen_wrapped_battery_status(state: &VehicleState) -> (UorbHeader, UorbMessage) {
+    let msg_data = gen_battery_status_data(state);
+    let hdr:UorbHeader = UorbHeader {
+        version: uorb_codec::UORB_MAGIC_V1,
+        hash: BatteryStatusData::MSG_HASH_CODE,
+        instance_id: 0,
+        payload_len: BatteryStatusData::ENCODED_LEN
+    };
+    let msg =  UorbMessage::BatteryStatus(msg_data);
+    (hdr, msg)
+}
+
 fn main() {
     println!("starting");
-
 
     let shared_vehicle_state = Arc::new(
         VehicleState {
@@ -84,12 +125,17 @@ fn main() {
             loop {
                 let (hdr, msg) = gen_wrapped_gps_position_msg(&shared_vehicle_state);
                 let res = vehicle.send(&hdr, &msg);
-                if res.is_ok() {
-                    thread::sleep(Duration::from_secs(1));
+                if !res.is_ok() {
+                   println!("send failed: {:?}", res);
                 }
-                else {
+
+                let (hdr, msg) = gen_wrapped_battery_status(&shared_vehicle_state);
+                let res = vehicle.send(&hdr, &msg);
+                if !res.is_ok() {
                     println!("send failed: {:?}", res);
                 }
+
+                thread::sleep(Duration::from_secs(1));
             }
         }
     });
