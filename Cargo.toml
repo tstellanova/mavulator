@@ -10,3 +10,6 @@ edition = "2018"
 [dependencies.uorb-codec]
 #git = "https://github.com/tstellanova/rust-mavlink.git"
 path = "../uorb-codec"
+
+[dependencies.sensulator]
+git = "https://github.com/tstellanova/sensulator.git"
