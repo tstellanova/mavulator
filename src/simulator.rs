@@ -4,6 +4,7 @@ use uorb_codec::common::*;
 use uorb_codec::{self, UorbHeader, UorbMsgMeta};
 use std::time::{Duration, SystemTime};
 use sensulator::Sensulator;
+use std::f32::NAN;
 
 
 pub const WHOLE_DEGREE_MULT: f32 = 1E7;
@@ -39,11 +40,11 @@ const GYRO_REL_ERR : f32 = 1e-4;
 const MAG_ABS_ERR : f32 = 5e-3;
 const MAG_REL_ERR : f32 = 1e-4;
 
-const GPS_DEGREES_ABS_ERR: WGS84Degrees = 1e-6;
-const GPS_DEGREES_REL_ERR: WGS84Degrees = 1e-8;
+const GPS_DEGREES_ABS_ERR: WGS84Degrees = 1e-2;
+const GPS_DEGREES_REL_ERR: WGS84Degrees = 1e-3;
 
 const ALT_ABS_ERR: Meters = 1e-1;
-const ALT_REL_ERR: Meters = 1e-4;
+const ALT_REL_ERR: Meters = 1e-2;
 
 const ACCEL_ONE_G: MetersPerSecondPerSecond = 9.80665;
 
@@ -81,6 +82,16 @@ pub struct VehicleState {
     ymag: Sensulator,
     zmag: Sensulator,
 
+}
+
+impl VehicleState {
+    pub fn elapsed_since(&self, old: u64) -> u64 {
+        let mut diff: i64 = (self.simulated_usecs - old) as i64;
+        if diff < 0 { diff = 0;}
+        diff as u64
+    }
+
+    pub fn get_simulated_usecs(&self) -> u64 { self.simulated_usecs }
 }
 
 
@@ -129,6 +140,8 @@ pub fn increment_simulated_time(state: &mut VehicleState) {
     let new_real_time = state.boot_time.elapsed().unwrap();
     state.simulated_usecs = micros_from_duration(&new_real_time);
 }
+
+
 
 
 pub fn gen_wrapped_battery_status(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
@@ -194,11 +207,11 @@ pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
         lon: (state.lon.read() * WHOLE_DEGREE_MULT) as i32,
         alt: (alt * 1E3) as i32,
         alt_ellipsoid: (alt * 1E3) as i32,
-        s_variance_m_s: 0.0,
-        c_variance_rad: 0.0,
-        fix_type: 3,
-        eph: 1.0,
-        epv: 1.0,
+        s_variance_m_s: 1.0,
+        c_variance_rad: 0.1,
+        fix_type: 3, //3d
+        eph: 0.3,
+        epv: 0.4,
         hdop: 0.0,
         vdop: 0.0,
         noise_per_ms: 0,
@@ -207,13 +220,13 @@ pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
         vel_n_m_s: 0.0,
         vel_e_m_s: 0.0,
         vel_d_m_s: 0.0,
-        cog_rad: 0.1,
+        cog_rad: 0.0,
         vel_ned_valid: true,
         timestamp_time_relative: 0,
-        time_utc_usec: state.simulated_usecs,
-        satellites_used: 11,
-        heading: 0.001,
-        heading_offset: 0.0,
+        time_utc_usec: state.simulated_usecs -1,
+        satellites_used: 10,
+        heading: NAN,
+        heading_offset: NAN,
     }
 }
 

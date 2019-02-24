@@ -24,33 +24,29 @@ fn main() {
     thread::spawn({
         let conn = vehicle_conn.clone();
         move || {
+            let mut last_slow_cadence_send: u64 = 0;
             let vehicle_state = shared_vehicle_state.clone();
             loop {
                 //Fast cadence loop, 4KHz approx
                 for _i in 0..4000 {
                     let mut state_w = vehicle_state.write().unwrap();
-                    //println!("> got write ");
                     simulator::increment_simulated_time(&mut state_w);
                     let res = send_fast_cadence_sensors(  &**conn, &mut state_w );
                     if res.is_err() {
                         println!("send_fast_cadence_sensors failed: {:?}",res);
                         return;
                     }
-                }
-                //Slow cadence
-                {
-                    let mut state_w = vehicle_state.write().unwrap();
-                    //println!("> got write ");
-                    simulator::increment_simulated_time(&mut state_w);
-                    let res = send_slow_cadence_sensors(&**conn, &mut state_w);
-                    if res.is_err()  {
-                        println!("send_fast_cadence_sensors failed: {:?}",res);
-                        return;
+
+                    if state_w.elapsed_since(last_slow_cadence_send) > 1000000 {
+                        last_slow_cadence_send =state_w.get_simulated_usecs();
+                        let res = send_slow_cadence_sensors(&**conn, &mut state_w);
+                        if res.is_err()  {
+                            println!("send_fast_cadence_sensors failed: {:?}",res);
+                            return;
+                        }
                     }
                 }
-
                 thread::yield_now();
-//                thread::sleep(Duration::from_millis(500));
             }
         }
     });
