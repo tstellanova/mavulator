@@ -5,7 +5,7 @@ use std::time::{Duration};
 
 use mavulator::*;
 
-
+use uorb_codec::common::*;
 
 fn main() {
     println!("starting");
@@ -26,29 +26,31 @@ fn main() {
         move || {
             let vehicle_state = shared_vehicle_state.clone();
             loop {
-                {
+                //Fast cadence loop, 4KHz approx
+                for _i in 0..4000 {
                     let mut state_w = vehicle_state.write().unwrap();
                     //println!("> got write ");
                     simulator::increment_simulated_time(&mut state_w);
-                    if send_slow_cadence_sensors(&**conn, &mut state_w).is_err() {
-                        return;
-                    }
-                }
-
-                //High cadence loop, 4KHz approx
-                for _i in 0..100 {
-                    let mut state_w = vehicle_state.write().unwrap();
-                    //println!("> got write ");
-                    simulator::increment_simulated_time(&mut state_w);
-                    let res =send_fast_cadence_sensors(  &**conn, &mut state_w );
+                    let res = send_fast_cadence_sensors(  &**conn, &mut state_w );
                     if res.is_err() {
                         println!("send_fast_cadence_sensors failed: {:?}",res);
                         return;
                     }
                 }
+                //Slow cadence
+                {
+                    let mut state_w = vehicle_state.write().unwrap();
+                    //println!("> got write ");
+                    simulator::increment_simulated_time(&mut state_w);
+                    let res = send_slow_cadence_sensors(&**conn, &mut state_w);
+                    if res.is_err()  {
+                        println!("send_fast_cadence_sensors failed: {:?}",res);
+                        return;
+                    }
+                }
 
-//                thread::yield_now();
-                thread::sleep(Duration::from_millis(500));
+                thread::yield_now();
+//                thread::sleep(Duration::from_millis(500));
             }
         }
     });
@@ -56,7 +58,14 @@ fn main() {
     loop {
         match vehicle_conn.recv() {
             Ok((_header, msg)) => {
-                println!("received: {:?}", msg);
+                match msg {
+                    UorbMessage::ActuatorOutputs(_m) => {
+                        //println!("time: {}", m.timestamp);
+                    },
+                    _ => {
+                        println!("recv: {:?}", msg);
+                    }
+                }
             },
             Err(e) => {
                 match e.kind() {

@@ -168,7 +168,7 @@ pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
         voltage_cell_v: [3.2, 3.2, 3.2, 3.2],
         max_cell_voltage_delta: 3.2,
         is_powering_off: false,
-        warning: 0,
+        warning: BatteryStatusData::BATTERY_WARNING_NONE,
     }
 }
 
@@ -217,8 +217,11 @@ pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
     }
 }
 
+
+const SIM_GYRO_DEVICE_ID: u32 = 2293768;
+
 pub fn gen_wrapped_sensor_gyro(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
-    let msg_data = gen_sensor_gyro_data(state, 2293768);
+    let msg_data = gen_sensor_gyro_data(state, SIM_GYRO_DEVICE_ID);
     let hdr:UorbHeader = UorbHeader {
         version: uorb_codec::UORB_MAGIC_V1,
         hash: SensorGyroData::MSG_HASH_CODE,
@@ -232,6 +235,11 @@ pub fn gen_wrapped_sensor_gyro(state: &mut VehicleState) -> (UorbHeader, UorbMes
 const GYRO_REBASE_FACTOR:f32 =  1E3;
 
 pub fn gen_sensor_gyro_data(state: &mut VehicleState, device_id: u32) -> SensorGyroData {
+//    println!("gyro time: {:x} {:x}",
+//             ((state.simulated_usecs >> 32) & 0xFFFFFFFF) as u32,
+//             (state.simulated_usecs & 0xFFFFFFFF) as u32
+//    );
+
     let xgyro = state.xgyro.read();
     let ygyro = state.ygyro.read();
     let zgyro = state.zgyro.read();
@@ -256,8 +264,10 @@ pub fn gen_sensor_gyro_data(state: &mut VehicleState, device_id: u32) -> SensorG
 }
 
 
+const SIM_ACCEL_DEVICE_ID:u32 = 1376264;
+
 pub fn gen_wrapped_sensor_accel(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
-    let msg_data = gen_sensor_accel_data(state, 1376264);
+    let msg_data = gen_sensor_accel_data(state, SIM_ACCEL_DEVICE_ID);
     let hdr:UorbHeader = UorbHeader {
         version: uorb_codec::UORB_MAGIC_V1,
         hash: SensorAccelData::MSG_HASH_CODE,
@@ -295,8 +305,10 @@ pub fn gen_sensor_accel_data(state: &mut VehicleState, device_id: u32) -> Sensor
 }
 
 
+const SIM_MAG_DEVCE_ID: u32 = 196616;
+
 pub fn gen_wrapped_sensor_mag(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
-    let msg_data = gen_sensor_mag_data(state, 196616);
+    let msg_data = gen_sensor_mag_data(state, SIM_MAG_DEVCE_ID);
     let hdr:UorbHeader = UorbHeader {
         version: uorb_codec::UORB_MAGIC_V1,
         hash: SensorMagData::MSG_HASH_CODE,
@@ -330,9 +342,10 @@ pub fn gen_sensor_mag_data(state: &mut VehicleState, device_id: u32) -> SensorMa
     }
 }
 
+const SIM_BARO_DEVICE_ID: u32 = 478459;
 
 pub fn gen_wrapped_sensor_baro(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
-    let msg_data = gen_sensor_baro_data(state, 478459);
+    let msg_data = gen_sensor_baro_data(state, SIM_BARO_DEVICE_ID);
     let hdr:UorbHeader = UorbHeader {
         version: uorb_codec::UORB_MAGIC_V1,
         hash: SensorBaroData::MSG_HASH_CODE,

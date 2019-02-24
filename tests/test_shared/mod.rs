@@ -24,16 +24,9 @@ pub fn get_vehicle_status() -> uorb_codec::common::VehicleStatusData {
         engine_failure: false,
         mission_failure: false,
         failure_detector_status: 0,
-        onboard_control_sensors_present: 12345,
-        onboard_control_sensors_enabled: 12345,
-        onboard_control_sensors_health: 12345,
+        onboard_control_sensors_present: 32,
+        onboard_control_sensors_enabled: 2097167,
+        onboard_control_sensors_health: 32,
     }
 }
 
-pub fn get_actuator_controls() -> uorb_codec::common::ActuatorControlsData {
-    uorb_codec::common::ActuatorControlsData {
-        timestamp: 19,
-        timestamp_sample: 21,
-        control: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
-    }
-}
