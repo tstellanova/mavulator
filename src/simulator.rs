@@ -6,7 +6,6 @@ use std::time::{Duration, SystemTime};
 use sensulator::Sensulator;
 use std::f32::NAN;
 
-
 pub const WHOLE_DEGREE_MULT: f32 = 1E7;
 
 pub const STD_PRESS: f64 = 101325.0;  // static pressure at sea level (Pa)
@@ -31,29 +30,42 @@ pub type WGS84Degrees = f32;
 
 
 /// Some guesses as to accuracy of a fake accelerometer
-const ACCEL_ABS_ERR : MetersPerSecondPerSecond = 5e-2;
-const ACCEL_REL_ERR : MetersPerSecondPerSecond = 1e-4;
+//const ACCEL_ABS_ERR : MetersPerSecondPerSecond = 5e-2;
+//const ACCEL_REL_ERR : MetersPerSecondPerSecond = 1e-4;
+
+const ACCEL_ABS_ERR : f32 = 1e-2;
+const ACCEL_REL_ERR : f32 = 1e-4;
 
 const GYRO_ABS_ERR : f32 = 1e-2;
 const GYRO_REL_ERR : f32 = 1e-4;
 
-const MAG_ABS_ERR : f32 = 5e-3;
+//const MAG_ABS_ERR : f32 = 5e-3;
+//const MAG_REL_ERR : f32 = 1e-4;
+
+const MAG_ABS_ERR : f32 = 1e-2;
 const MAG_REL_ERR : f32 = 1e-4;
 
-const GPS_DEGREES_ABS_ERR: WGS84Degrees = 1e-2;
-const GPS_DEGREES_REL_ERR: WGS84Degrees = 1e-3;
+const GPS_DEGREES_ABS_ERR: WGS84Degrees = 1e-6;
+const GPS_DEGREES_REL_ERR: WGS84Degrees = 1e-8;
 
-const ALT_ABS_ERR: Meters = 1e-1;
-const ALT_REL_ERR: Meters = 1e-2;
+// this range appears to allow EKF fusion to begin
+const ALT_ABS_ERR: Meters = 10.0;
+const ALT_REL_ERR: Meters = 5.0;
+
 
 const ACCEL_ONE_G: MetersPerSecondPerSecond = 9.80665;
 
 /// Fake home coordinates
-const HOME_LAT: WGS84Degrees = 37.8;
-const HOME_LON: WGS84Degrees = -122.2;
+const HOME_LAT: WGS84Degrees = 37.8001504;
+const HOME_LON: WGS84Degrees = -122.1997440;
+
 const HOME_ALT: Meters = 500.0;
-const HOME_MAG:[f32; 3] = [ 22535E-5, 5384E-5, 42217E-5 ];
-const LANDED_ACCEL_VAL: MetersPerSecondPerSecond = 1E-3;
+//const HOME_MAG:[f32; 3] = [ 22535E-5, 5384E-5, 42217E-5 ];
+const HOME_MAG:[f32; 3] = [ 0.001, 0.001, 0.001 ];
+
+const LANDED_ACCEL_VALS:[MetersPerSecondPerSecond; 3] = [1E-3, 1E-3, ACCEL_ONE_G];
+//const LANDED_ACCEL_VAL: MetersPerSecondPerSecond = 1E-3;
+
 const LANDED_GYRO_VAL: f32 = 1E-4;
 
 pub struct VehicleState {
@@ -81,6 +93,10 @@ pub struct VehicleState {
     xmag: Sensulator,
     ymag: Sensulator,
     zmag: Sensulator,
+
+    /// Airspeed (differential pressure)
+    diff_press: Sensulator,
+
 
 }
 
@@ -110,13 +126,16 @@ pub fn initial_vehicle_state() ->  VehicleState {
         ygyro: Sensulator::new(LANDED_GYRO_VAL, GYRO_ABS_ERR, GYRO_REL_ERR),
         zgyro: Sensulator::new(LANDED_GYRO_VAL, GYRO_ABS_ERR, GYRO_REL_ERR),
 
-        xacc:  Sensulator::new(LANDED_ACCEL_VAL, ACCEL_ABS_ERR, ACCEL_REL_ERR),
-        yacc:  Sensulator::new(LANDED_ACCEL_VAL, ACCEL_ABS_ERR, ACCEL_REL_ERR),
-        zacc:  Sensulator::new(ACCEL_ONE_G, ACCEL_ABS_ERR, ACCEL_REL_ERR),
+        xacc:  Sensulator::new(LANDED_ACCEL_VALS[0], ACCEL_ABS_ERR, ACCEL_REL_ERR),
+        yacc:  Sensulator::new(LANDED_ACCEL_VALS[1], ACCEL_ABS_ERR, ACCEL_REL_ERR),
+        zacc:  Sensulator::new(LANDED_ACCEL_VALS[2], ACCEL_ABS_ERR, ACCEL_REL_ERR),
 
         xmag: Sensulator::new(HOME_MAG[0], MAG_ABS_ERR, MAG_REL_ERR),
         ymag: Sensulator::new(HOME_MAG[1], MAG_ABS_ERR, MAG_REL_ERR),
         zmag: Sensulator::new(HOME_MAG[2], MAG_ABS_ERR, MAG_REL_ERR),
+
+        //diff press requires some error in order to pass preflight checks
+        diff_press: Sensulator::new(0.0, 1E-3, 1E-5),
     }
 }
 
@@ -186,6 +205,47 @@ pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
 }
 
 
+//pub fn gen_wrapped_vehicle_global_position_msg(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
+//    let msg_data = gen_vehicle_global_position_data(state);
+//    let hdr:UorbHeader = UorbHeader {
+//        version: uorb_codec::UORB_MAGIC_V1,
+//        hash: VehicleGlobalPositionData::MSG_HASH_CODE,
+//        instance_id: 0,
+//        payload_len: VehicleGlobalPositionData::ENCODED_LEN
+//    };
+//    let msg =  UorbMessage::VehicleGlobalPosition(msg_data);
+//    (hdr, msg)
+//}
+//
+//pub fn gen_vehicle_global_position_data(state: &mut VehicleState) -> VehicleGlobalPositionData {
+//    let alt = state.alt.read();
+//    VehicleGlobalPositionData {
+//        timestamp: state.simulated_usecs,
+//        lat: state.lat.read() as f64,
+//        lon: state.lon.read() as f64,
+//        alt:  alt,
+//        alt_ellipsoid: alt,
+//        delta_alt: 0.0,
+//        yaw: 0.0,
+//        eph: 0.3,
+//        epv: 0.4,
+//        terrain_alt: 0.0,
+//        lat_lon_reset_counter: 0,
+//        alt_reset_counter: 0,
+//        terrain_alt_valid: false,
+//        dead_reckoning: false,
+//
+//        vel_n: 0.0,
+//        vel_e: 0.0,
+//        vel_d: 0.0,
+//    }
+//}
+
+
+
+
+
+
 //TODO move this wrapping into uorb-codec itself
 pub fn gen_wrapped_gps_position_msg(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_gps_msg_data(state);
@@ -201,29 +261,50 @@ pub fn gen_wrapped_gps_position_msg(state: &mut VehicleState) -> (UorbHeader, Uo
 
 pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
     let alt = state.alt.read();
+
+//    _report_gps_pos.timestamp = hrt_absolute_time();
+//    _report_gps_pos.lat = gps.lat;
+//    _report_gps_pos.lon = gps.lon;
+//    _report_gps_pos.alt = gps.alt;
+//    _report_gps_pos.eph = (float)gps.eph * 1e-2f;
+//    _report_gps_pos.epv = (float)gps.epv * 1e-2f;
+//    _report_gps_pos.vel_m_s = (float)(gps.vel) / 100.0f;
+//    _report_gps_pos.vel_n_m_s = (float)(gps.vn) / 100.0f;
+//    _report_gps_pos.vel_e_m_s = (float)(gps.ve) / 100.0f;
+//    _report_gps_pos.vel_d_m_s = (float)(gps.vd) / 100.0f;
+//    _report_gps_pos.cog_rad = (float)(gps.cog) * 3.1415f / (100.0f * 180.0f);
+//    _report_gps_pos.heading = NAN;
+//    _report_gps_pos.heading_offset = NAN;
+
     VehicleGpsPositionData {
         timestamp: state.simulated_usecs,
+        time_utc_usec: 0,
+
         lat: (state.lat.read() * WHOLE_DEGREE_MULT) as i32,
         lon: (state.lon.read() * WHOLE_DEGREE_MULT) as i32,
         alt: (alt * 1E3) as i32,
-        alt_ellipsoid: (alt * 1E3) as i32,
-        s_variance_m_s: 1.0,
-        c_variance_rad: 0.1,
+        alt_ellipsoid: 0,
+
+        s_variance_m_s: 0.0,
+        c_variance_rad: 0.0,
         fix_type: 3, //3d
-        eph: 0.3,
-        epv: 0.4,
+        eph: 0.01,
+        epv: 0.01,
         hdop: 0.0,
         vdop: 0.0,
+
         noise_per_ms: 0,
         jamming_indicator: 0,
+
         vel_m_s: 0.0,
         vel_n_m_s: 0.0,
         vel_e_m_s: 0.0,
         vel_d_m_s: 0.0,
+
         cog_rad: 0.0,
-        vel_ned_valid: true,
+        vel_ned_valid: false,
+
         timestamp_time_relative: 0,
-        time_utc_usec: state.simulated_usecs -1,
         satellites_used: 10,
         heading: NAN,
         heading_offset: NAN,
@@ -377,4 +458,82 @@ pub fn gen_sensor_baro_data(state: &mut VehicleState, device_id: u32) -> SensorB
         pressure: altitude_to_baro_pressure(state.alt.read()),
         temperature: state.temperature,
     }
+}
+
+
+const SIM_DIFF_PRESS_DEVICE_ID: u32 = 0;
+
+pub fn gen_wrapped_differential_pressure(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
+    let msg_data = gen_differential_pressure_data(state, SIM_DIFF_PRESS_DEVICE_ID);
+    let hdr:UorbHeader = UorbHeader {
+        version: uorb_codec::UORB_MAGIC_V1,
+        hash: DifferentialPressureData::MSG_HASH_CODE,
+        instance_id: 0,
+        payload_len: DifferentialPressureData::ENCODED_LEN
+    };
+    let msg =  UorbMessage::DifferentialPressure(msg_data);
+    (hdr, msg)
+}
+
+pub fn gen_differential_pressure_data(state: &mut VehicleState, device_id: u32) -> DifferentialPressureData {
+    let speed_pressure: f32 = state.diff_press.read();
+
+    DifferentialPressureData {
+        timestamp: state.simulated_usecs,
+        device_id: device_id,
+        error_count: 0,
+        differential_pressure_raw_pa:speed_pressure,
+        differential_pressure_filtered_pa: speed_pressure,
+        temperature: state.temperature,
+    }
+}
+
+
+
+pub fn gen_wrapped_timesync_status(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
+    let msg_data = gen_timesync_status_data(state);
+    let hdr:UorbHeader = UorbHeader {
+        version: uorb_codec::UORB_MAGIC_V1,
+        hash: TimesyncStatusData::MSG_HASH_CODE,
+        instance_id: 0,
+        payload_len: TimesyncStatusData::ENCODED_LEN
+    };
+    let msg =  UorbMessage::TimesyncStatus(msg_data);
+    (hdr, msg)
+}
+
+pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData {
+    TimesyncStatusData {
+        timestamp: state.simulated_usecs,
+        remote_timestamp: state.simulated_usecs,
+        observed_offset: 0,
+        estimated_offset: 0,
+        round_trip_time: 2, //micros
+    }
+}
+
+
+pub fn gen_fast_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
+    increment_simulated_time(state);
+
+    let mut msg_list = vec![];
+    msg_list.push( gen_wrapped_timesync_status(state) );
+    increment_simulated_time(state);
+    msg_list.push( gen_wrapped_sensor_gyro(state) );
+    msg_list.push( gen_wrapped_sensor_accel(state) );
+    msg_list.push( gen_wrapped_sensor_mag(state) );
+    msg_list.push( gen_wrapped_sensor_baro(state) );
+    msg_list.push( gen_wrapped_differential_pressure(state) );
+
+    msg_list
+}
+
+pub fn gen_slow_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
+    increment_simulated_time(state);
+
+    let mut msg_list = vec![];
+    msg_list.push(gen_wrapped_gps_position_msg(state));
+    msg_list.push(gen_wrapped_battery_status(state));
+//    msg_list.push( gen_wrapped_vehicle_global_position_msg(state) );
+    msg_list
 }

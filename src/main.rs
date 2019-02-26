@@ -27,10 +27,9 @@ fn main() {
             let mut last_slow_cadence_send: u64 = 0;
             let vehicle_state = shared_vehicle_state.clone();
             loop {
-                //Fast cadence loop, 4KHz approx
-                for _i in 0..4000 {
+                //Fast cadence loop, 1KHz approx
+                for _i in 0..1000 {
                     let mut state_w = vehicle_state.write().unwrap();
-                    simulator::increment_simulated_time(&mut state_w);
                     let res = send_fast_cadence_sensors(  &**conn, &mut state_w );
                     if res.is_err() {
                         println!("send_fast_cadence_sensors failed: {:?}",res);
@@ -38,7 +37,7 @@ fn main() {
                     }
 
                     if state_w.elapsed_since(last_slow_cadence_send) > 1000000 {
-                        last_slow_cadence_send =state_w.get_simulated_usecs();
+                        last_slow_cadence_send = state_w.get_simulated_usecs();
                         let res = send_slow_cadence_sensors(&**conn, &mut state_w);
                         if res.is_err()  {
                             println!("send_fast_cadence_sensors failed: {:?}",res);
@@ -46,7 +45,8 @@ fn main() {
                         }
                     }
                 }
-                thread::yield_now();
+                //thread::yield_now();
+                thread::sleep(Duration::from_millis(10));
             }
         }
     });
@@ -57,6 +57,9 @@ fn main() {
                 match msg {
                     UorbMessage::ActuatorOutputs(_m) => {
                         //println!("time: {}", m.timestamp);
+                    },
+                    UorbMessage::VehicleStatus(_m) => {
+
                     },
                     _ => {
                         println!("recv: {:?}", msg);
