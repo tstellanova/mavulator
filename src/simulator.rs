@@ -163,16 +163,11 @@ pub fn increment_simulated_time(state: &mut VehicleState) {
 
 
 
+
+
 pub fn gen_wrapped_battery_status(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_battery_status_data(state);
-    let hdr:UorbHeader = UorbHeader {
-        version: uorb_codec::UORB_MAGIC_V1,
-        hash: BatteryStatusData::MSG_HASH_CODE,
-        instance_id: 0,
-        payload_len: BatteryStatusData::ENCODED_LEN
-    };
-    let msg =  UorbMessage::BatteryStatus(msg_data);
-    (hdr, msg)
+    msg_data.gen_ready_pair(0)
 }
 
 
@@ -207,14 +202,7 @@ pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
 
 //pub fn gen_wrapped_vehicle_global_position_msg(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
 //    let msg_data = gen_vehicle_global_position_data(state);
-//    let hdr:UorbHeader = UorbHeader {
-//        version: uorb_codec::UORB_MAGIC_V1,
-//        hash: VehicleGlobalPositionData::MSG_HASH_CODE,
-//        instance_id: 0,
-//        payload_len: VehicleGlobalPositionData::ENCODED_LEN
-//    };
-//    let msg =  UorbMessage::VehicleGlobalPosition(msg_data);
-//    (hdr, msg)
+//    msg_data.gen_ready_pair(0)
 //}
 //
 //pub fn gen_vehicle_global_position_data(state: &mut VehicleState) -> VehicleGlobalPositionData {
@@ -249,14 +237,7 @@ pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
 //TODO move this wrapping into uorb-codec itself
 pub fn gen_wrapped_gps_position_msg(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_gps_msg_data(state);
-    let hdr:UorbHeader = UorbHeader {
-        version: uorb_codec::UORB_MAGIC_V1,
-        hash: VehicleGpsPositionData::MSG_HASH_CODE,
-        instance_id: 0,
-        payload_len: VehicleGpsPositionData::ENCODED_LEN
-    };
-    let msg =  UorbMessage::VehicleGpsPosition(msg_data);
-    (hdr, msg)
+    msg_data.gen_ready_pair(0)
 }
 
 pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
@@ -316,14 +297,8 @@ const SIM_GYRO_DEVICE_ID: u32 = 2293768;
 
 pub fn gen_wrapped_sensor_gyro(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_gyro_data(state, SIM_GYRO_DEVICE_ID);
-    let hdr:UorbHeader = UorbHeader {
-        version: uorb_codec::UORB_MAGIC_V1,
-        hash: SensorGyroData::MSG_HASH_CODE,
-        instance_id: 0,
-        payload_len: SensorGyroData::ENCODED_LEN
-    };
-    let msg =  UorbMessage::SensorGyro(msg_data);
-    (hdr, msg)
+    msg_data.gen_ready_pair(0)
+
 }
 
 const GYRO_REBASE_FACTOR:f32 =  1E3;
@@ -362,14 +337,7 @@ const SIM_ACCEL_DEVICE_ID:u32 = 1376264;
 
 pub fn gen_wrapped_sensor_accel(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_accel_data(state, SIM_ACCEL_DEVICE_ID);
-    let hdr:UorbHeader = UorbHeader {
-        version: uorb_codec::UORB_MAGIC_V1,
-        hash: SensorAccelData::MSG_HASH_CODE,
-        instance_id: 0,
-        payload_len: SensorAccelData::ENCODED_LEN
-    };
-    let msg =  UorbMessage::SensorAccel(msg_data);
-    (hdr, msg)
+    msg_data.gen_ready_pair(0)
 }
 
 const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
@@ -403,14 +371,7 @@ const SIM_MAG_DEVCE_ID: u32 = 196616;
 
 pub fn gen_wrapped_sensor_mag(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_mag_data(state, SIM_MAG_DEVCE_ID);
-    let hdr:UorbHeader = UorbHeader {
-        version: uorb_codec::UORB_MAGIC_V1,
-        hash: SensorMagData::MSG_HASH_CODE,
-        instance_id: 0,
-        payload_len: SensorMagData::ENCODED_LEN
-    };
-    let msg =  UorbMessage::SensorMag(msg_data);
-    (hdr, msg)
+    msg_data.gen_ready_pair(0)
 }
 
 const MAG_REBASE_FACTOR : f32 = 1E3;
@@ -440,14 +401,7 @@ const SIM_BARO_DEVICE_ID: u32 = 478459;
 
 pub fn gen_wrapped_sensor_baro(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_baro_data(state, SIM_BARO_DEVICE_ID);
-    let hdr:UorbHeader = UorbHeader {
-        version: uorb_codec::UORB_MAGIC_V1,
-        hash: SensorBaroData::MSG_HASH_CODE,
-        instance_id: 0,
-        payload_len: SensorBaroData::ENCODED_LEN
-    };
-    let msg =  UorbMessage::SensorBaro(msg_data);
-    (hdr, msg)
+    msg_data.gen_ready_pair(0)
 }
 
 pub fn gen_sensor_baro_data(state: &mut VehicleState, device_id: u32) -> SensorBaroData {
@@ -465,14 +419,7 @@ const SIM_DIFF_PRESS_DEVICE_ID: u32 = 0;
 
 pub fn gen_wrapped_differential_pressure(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_differential_pressure_data(state, SIM_DIFF_PRESS_DEVICE_ID);
-    let hdr:UorbHeader = UorbHeader {
-        version: uorb_codec::UORB_MAGIC_V1,
-        hash: DifferentialPressureData::MSG_HASH_CODE,
-        instance_id: 0,
-        payload_len: DifferentialPressureData::ENCODED_LEN
-    };
-    let msg =  UorbMessage::DifferentialPressure(msg_data);
-    (hdr, msg)
+    msg_data.gen_ready_pair(0)
 }
 
 pub fn gen_differential_pressure_data(state: &mut VehicleState, device_id: u32) -> DifferentialPressureData {
@@ -492,14 +439,7 @@ pub fn gen_differential_pressure_data(state: &mut VehicleState, device_id: u32) 
 
 pub fn gen_wrapped_timesync_status(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_timesync_status_data(state);
-    let hdr:UorbHeader = UorbHeader {
-        version: uorb_codec::UORB_MAGIC_V1,
-        hash: TimesyncStatusData::MSG_HASH_CODE,
-        instance_id: 0,
-        payload_len: TimesyncStatusData::ENCODED_LEN
-    };
-    let msg =  UorbMessage::TimesyncStatus(msg_data);
-    (hdr, msg)
+    msg_data.gen_ready_pair(0)
 }
 
 pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData {
