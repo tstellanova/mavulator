@@ -3,7 +3,7 @@ use std::io::Error;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration};
-
+use uorb_codec::{UorbHeader, UorbMessage};
 
 pub mod connection;
 pub mod simulator;
@@ -13,53 +13,62 @@ use crate::simulator::VehicleState;
 
 
 
-pub fn send_slow_cadence_sensors(state: &mut VehicleState, conn: &UorbConnection ) -> Result<(), Error> {
-    let msg_list = simulator::gen_slow_cadence_sensors(state);
+pub fn send_all_messages( conn: &UorbConnection,  msg_list: Vec<(UorbHeader, UorbMessage)>) -> Result<(), Error> {
     for (hdr, msg) in msg_list {
         conn.send(&hdr, &msg)?;
     }
     Ok(())
 }
 
-pub fn send_fast_cadence_sensors( state: &mut VehicleState, conn: &UorbConnection) -> Result<(), Error> {
-    let msg_list = simulator::gen_fast_cadence_sensors(state);
-    for (hdr, msg) in msg_list {
-        conn.send(&hdr, &msg)?;
-    }
-    Ok(())
-}
-
+/// Gyro rate should be 400 Hz
+/// Accel rate should be 400 Hz
+/// Mag rate should be 100 Hz
+/// Baro rate should be 100 Hz
+/// Airspeed should be 100 Hz
+///
 pub fn simulator_loop(vehicle_state:Arc<RwLock<VehicleState>> , conn:Arc<Box<UorbConnection+Send+Sync>>) {
-    let mut last_slow_cadence_send: u64 = 0;
-    let mut last_fast_cadence_send: u64 = 0;
+    let mut last_slow_cadence_send: u64 = 0; //1Hz sensors
+    let mut last_med_cadence_send: u64 = 0; //100Hz sensors
+    let mut last_fast_cadence_send: u64 = 0; //400Hz sensors
     loop {
-        for _i in 0..500 {
+        // TODO modfy this when we decouple from realtime clock
+        thread::sleep(Duration::from_micros(250));
+        let mut msg_list: Vec<(UorbHeader, UorbMessage)> = vec![];
+        {
             let mut state_w = vehicle_state.write().unwrap();
-            //Fast cadence: 8KHz approx
-            if state_w.elapsed_since(last_fast_cadence_send) > 125 {
-                let res = send_fast_cadence_sensors(&mut state_w, &**conn);
-                if res.is_err() {
-                    println!("send_fast_cadence_sensors failed: {:?}", res);
-                    return;
-                }
+            simulator::increment_simulated_time(&mut state_w);
+
+            //Fast cadence: 400Hz approx
+            if state_w.elapsed_since(last_fast_cadence_send) > 2500 {
+                let msgs = simulator::gen_fast_cadence_sensors(&mut state_w);
+                msg_list.extend(msgs);
                 last_fast_cadence_send = state_w.get_simulated_usecs();
             }
-            else {
-                simulator::increment_simulated_time(&mut state_w);
+
+            // Medium cadence: about 100Hz
+            if state_w.elapsed_since(last_med_cadence_send) > 10000 {
+                let msgs = simulator::gen_med_cadence_sensors(&mut state_w);
+                msg_list.extend(msgs);
+                last_med_cadence_send = state_w.get_simulated_usecs();
             }
 
             //Slow cadence: 1Hz approx
             if state_w.elapsed_since(last_slow_cadence_send) > 1000000 {
+                let msgs = simulator::gen_slow_cadence_sensors(&mut state_w);
+                msg_list.extend(msgs);
                 last_slow_cadence_send = state_w.get_simulated_usecs();
-                let res = send_slow_cadence_sensors(&mut state_w, &**conn);
-                if res.is_err()  {
-                    println!("send_fast_cadence_sensors failed: {:?}",res);
-                    return;
-                }
             }
         }
-//        thread::yield_now();
-        thread::sleep(Duration::from_micros(25));
+
+        if msg_list.len() > 0 {
+            //send all messages
+            let res = send_all_messages(&**conn, msg_list);
+            if res.is_err() {
+                println!("sending failed: {:?}", res);
+                return;
+            }
+        }
+
     }
 }
 

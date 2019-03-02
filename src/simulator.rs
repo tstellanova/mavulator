@@ -97,11 +97,15 @@ pub struct VehicleState {
 impl VehicleState {
     pub fn elapsed_since(&self, old: u64) -> u64 {
         let mut diff: i64 = (self.simulated_usecs - old) as i64;
-        if diff < 0 { diff = 0;}
+        if diff < 0 {
+            diff = 0;
+        }
         diff as u64
     }
 
-    pub fn get_simulated_usecs(&self) -> u64 { self.simulated_usecs }
+    pub fn get_simulated_usecs(&self) -> u64 {
+        self.simulated_usecs
+    }
 }
 
 
@@ -194,15 +198,15 @@ pub fn gen_wrapped_gps_position_msg(state: &mut VehicleState) -> (UorbHeader, Uo
 }
 
 pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
-    let alt = state.alt.read();
+    let alt = state.alt.peek();//use the same altitude that baro has already generated
     let alt_mm = (alt * 1E3) as i32;
 
     VehicleGpsPositionData {
         timestamp: state.simulated_usecs,
         time_utc_usec: 0,
 
-        lat: (state.lat.read() * WHOLE_DEGREE_MULT) as i32,
-        lon: (state.lon.read() * WHOLE_DEGREE_MULT) as i32,
+        lat: (state.lat.measure() * WHOLE_DEGREE_MULT) as i32,
+        lon: (state.lon.measure() * WHOLE_DEGREE_MULT) as i32,
         alt: alt_mm,
         alt_ellipsoid: 0,
 
@@ -246,9 +250,9 @@ const GYRO_REBASE_FACTOR:f32 =  8388463.696; //17072.0/0.0020351426;
 
 pub fn gen_sensor_gyro_data(state: &mut VehicleState, device_id: u32) -> SensorGyroData {
 
-    let xgyro = state.xgyro.read();
-    let ygyro = state.ygyro.read();
-    let zgyro = state.zgyro.read();
+    let xgyro = state.xgyro.measure();
+    let ygyro = state.ygyro.measure();
+    let zgyro = state.zgyro.measure();
 
     SensorGyroData {
         device_id: device_id,
@@ -280,9 +284,9 @@ pub fn gen_wrapped_sensor_accel(state: &mut VehicleState) -> (UorbHeader, UorbMe
 //const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
 
 pub fn gen_sensor_accel_data(state: &mut VehicleState, device_id: u32) -> SensorAccelData {
-    let xacc = state.xacc.read();
-    let yacc = state.yacc.read();
-    let zacc = state.zacc.read();
+    let xacc = state.xacc.measure();
+    let yacc = state.yacc.measure();
+    let zacc = state.zacc.measure();
 
     SensorAccelData {
         timestamp: state.simulated_usecs,
@@ -316,9 +320,9 @@ pub fn gen_wrapped_sensor_mag(state: &mut VehicleState) -> (UorbHeader, UorbMess
 const MAG_REBASE_FACTOR : f32 = 8220444.151;
 
 pub fn gen_sensor_mag_data(state: &mut VehicleState, device_id: u32) -> SensorMagData {
-    let xmag = state.xmag.read();
-    let ymag = state.ymag.read();
-    let zmag = state.zmag.read();
+    let xmag = state.xmag.measure();
+    let ymag = state.ymag.measure();
+    let zmag = state.zmag.measure();
 
     SensorMagData {
         timestamp: state.simulated_usecs,
@@ -348,7 +352,7 @@ pub fn gen_sensor_baro_data(state: &mut VehicleState, device_id: u32) -> SensorB
         timestamp: state.simulated_usecs,
         device_id: device_id,
         error_count: 0,
-        pressure: altitude_to_baro_pressure(state.alt.read()),
+        pressure: altitude_to_baro_pressure(state.alt.measure()),
         temperature: state.temperature,
     }
 }
@@ -362,7 +366,7 @@ pub fn gen_wrapped_differential_pressure(state: &mut VehicleState) -> (UorbHeade
 }
 
 pub fn gen_differential_pressure_data(state: &mut VehicleState, device_id: u32) -> DifferentialPressureData {
-    let speed_pressure: f32 = state.diff_press.read();
+    let speed_pressure: f32 = state.diff_press.measure();
 
     DifferentialPressureData {
         timestamp: state.simulated_usecs,
@@ -392,23 +396,32 @@ pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData 
 }
 
 
+/// Gyro rate should be 400 Hz
+/// Accel rate should be 400 Hz
 pub fn gen_fast_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
-
     let mut msg_list = vec![];
     msg_list.push( gen_wrapped_timesync_status(state) );
-    increment_simulated_time(state);
+    increment_simulated_time(state); //TODO unnecessary?
     msg_list.push( gen_wrapped_sensor_gyro(state) );
     msg_list.push( gen_wrapped_sensor_accel(state) );
-    msg_list.push( gen_wrapped_sensor_mag(state) );
-    msg_list.push( gen_wrapped_sensor_baro(state) );
-    msg_list.push( gen_wrapped_differential_pressure(state) );
-
     msg_list
 }
 
-pub fn gen_slow_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
-    increment_simulated_time(state);
 
+/// Mag rate should be 100 Hz
+/// Baro rate should be 100 Hz
+/// Airspeed should be 100 Hz
+pub fn gen_med_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
+    let mut msg_list = vec![];
+    msg_list.push( gen_wrapped_sensor_mag(state) );
+    msg_list.push( gen_wrapped_sensor_baro(state) );
+    msg_list.push( gen_wrapped_differential_pressure(state) );
+    msg_list
+}
+
+/// Gps rate should be about 1 Hz
+/// Battery status rate should be about 1 Hz
+pub fn gen_slow_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
     let mut msg_list = vec![];
     msg_list.push(gen_wrapped_gps_position_msg(state));
     msg_list.push(gen_wrapped_battery_status(state));
