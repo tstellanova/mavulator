@@ -19,6 +19,7 @@ pub const GAS_CONSTANT_R : f64 = 8.31432;    // universal gas constant, R
 //physical type definitions
 
 type Meters = f32;
+type Pascals = f32;
 //type MetersPerSecond = f32;
 type MetersPerSecondPerSecond = f32;
 //type RadiansPerSecond = f32;
@@ -29,42 +30,36 @@ pub type WGS84Degrees = f32;
 //pub type WholeMillimeters = i32;
 
 
-/// Some guesses as to accuracy of a fake accelerometer
-//const ACCEL_ABS_ERR : MetersPerSecondPerSecond = 5e-2;
-//const ACCEL_REL_ERR : MetersPerSecondPerSecond = 1e-4;
-
-const MIN_SENSOR_ABS_ERR:f32  = 2E-5;
 const MIN_SENSOR_REL_ERR:f32  = 1E-7;
 
-const ACCEL_ABS_ERR : f32 = 1e-4;
-const ACCEL_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
-
-const GYRO_ABS_ERR : f32 = 1e-4;
+const GYRO_ABS_ERR : f32 = 0.0000266;
 const GYRO_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
 
-const MAG_ABS_ERR : f32 = 0.000026483;
+const ACCEL_ABS_ERR : f32 = 0.0000267;
+const ACCEL_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
+
+const MAG_ABS_ERR : f32 = 0.0000265;
 const MAG_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
 
-const GPS_DEGREES_ABS_ERR: WGS84Degrees = 1E-4;
-const GPS_DEGREES_REL_ERR: WGS84Degrees = 1E-6;
+const GPS_DEGREES_ABS_ERR: WGS84Degrees = 1E-6;
+const GPS_DEGREES_REL_ERR: WGS84Degrees = MIN_SENSOR_REL_ERR;
 
 // this range appears to allow EKF fusion to begin
-const ALT_ABS_ERR: Meters = 10.0;
-const ALT_REL_ERR: Meters = 5.0; //1539.785
+const ALT_ABS_ERR: Meters = 1.5;
+const ALT_REL_ERR: Meters = MIN_SENSOR_REL_ERR;
 
-
-const ACCEL_ONE_G: MetersPerSecondPerSecond = 9.80665;
+//const ACCEL_ONE_G: MetersPerSecondPerSecond = 9.80665;
 
 /// Fake home coordinates
 const HOME_LAT: WGS84Degrees =  37.8001024;
 const HOME_LON: WGS84Degrees =  -122.1997184;
-
 const HOME_ALT: Meters = 500.0;
 
 //const HOME_MAG:[f32; 3] = [ 22535E-5, 5384E-5, 42217E-5 ];
-const HOME_MAG:[f32; 3] = [ 0.00144767145, 0.004156071878, 0.003152540706 ];
+//const HOME_MAG:[f32; 3] = [ 0.00144767145, 0.004156071878, 0.003152540706 ];
+const HOME_MAG:[f32; 3] = [ 0.001613762305, 0.003411047039, 0.002402817653 ];
 
-const LANDED_ACCEL_VALS:[MetersPerSecondPerSecond; 3] = [MIN_SENSOR_ABS_ERR, MIN_SENSOR_ABS_ERR, ACCEL_ONE_G];
+const LANDED_ACCEL_VALS:[MetersPerSecondPerSecond; 3] = [0.008651008647, 0.004627180345, 9.801405599];
 
 const LANDED_GYRO_VALS:[f32; 3] = [0.0020351426,0.0028725443,0.009010567];
 
@@ -96,7 +91,6 @@ pub struct VehicleState {
 
     /// Airspeed (differential pressure)
     diff_press: Sensulator,
-
 
 }
 
@@ -135,18 +129,18 @@ pub fn initial_vehicle_state() ->  VehicleState {
         zmag: Sensulator::new(HOME_MAG[2], MAG_ABS_ERR, MAG_REL_ERR),
 
         //diff press requires some error in order to pass preflight checks
-        diff_press: Sensulator::new(0.0, 1E-3, 1E-5),
+        diff_press: Sensulator::new(0.0, 1E-3, MIN_SENSOR_REL_ERR),
     }
 }
 
 /// Convert altitude (meters) to standard barometric pressure (Pascals)
 /// Note: this formula is likely only useful under 10k feet
-pub fn altitude_to_baro_pressure(alt: f32) -> f32 {
+pub fn altitude_to_baro_pressure(alt: Meters) -> Pascals {
     let big_alt: f64 = alt.into();
     let base = STD_TEMP / (STD_TEMP + (LAPSE_RATE * big_alt));
     let exp = (ACCEL_G * MOL_MASS) / (GAS_CONSTANT_R * LAPSE_RATE);
     let val: f64 = STD_PRESS * base.powf(exp);
-    (val as f32)
+    (val as Pascals)
 }
 
 
@@ -160,16 +154,10 @@ pub fn increment_simulated_time(state: &mut VehicleState) {
     state.simulated_usecs = micros_from_duration(&new_real_time);
 }
 
-
-
-
-
-
 pub fn gen_wrapped_battery_status(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_battery_status_data(state);
     msg_data.gen_ready_pair(0)
 }
-
 
 pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
     BatteryStatusData {
@@ -254,19 +242,9 @@ pub fn gen_wrapped_sensor_gyro(state: &mut VehicleState) -> (UorbHeader, UorbMes
 }
 
 
-//timestamp,error_count,device_id,x,y,z,integral_dt,x_integral,y_integral,z_integral,temperature,scaling,x_raw,y_raw,z_raw
-//2161376,0,2293768,0.0020351426,0.0028725443,0.009010567,3200,6.511943e-06,9.221726e-06,2.8863593e-05,32.0,1.1920929e-07,17072,24096,32767
-//2164952,0,2293768,0.0020540587,0.002876822,0.008949214,3576,7.311492e-06,1.0279867e-05,3.211209e-05,32.0,1.1920929e-07,17230,24132,32767
-//2173364,0,2293768,0.0020801222,0.0028458235,0.008959386,2360,4.8508505e-06,6.704657e-06,2.1163523e-05,32.0,1.1920929e-07,17449,23872,32767
-
-
-const GYRO_REBASE_FACTOR:f32 =  17072.0/0.0020351426;
+const GYRO_REBASE_FACTOR:f32 =  8388463.696; //17072.0/0.0020351426;
 
 pub fn gen_sensor_gyro_data(state: &mut VehicleState, device_id: u32) -> SensorGyroData {
-//    println!("gyro time: {:x} {:x}",
-//             ((state.simulated_usecs >> 32) & 0xFFFFFFFF) as u32,
-//             (state.simulated_usecs & 0xFFFFFFFF) as u32
-//    );
 
     let xgyro = state.xgyro.read();
     let ygyro = state.ygyro.read();
@@ -279,8 +257,7 @@ pub fn gen_sensor_gyro_data(state: &mut VehicleState, device_id: u32) -> SensorG
         x: xgyro,
         y: ygyro,
         z: zgyro,
-        integral_dt:3200,
-        //6.511943e-06,9.221726e-06,2.8863593e-05
+        integral_dt:4000,
         x_integral: 6.511943e-06,
         y_integral: 9.221726e-06,
         z_integral: 2.8863593e-05,
@@ -300,7 +277,7 @@ pub fn gen_wrapped_sensor_accel(state: &mut VehicleState) -> (UorbHeader, UorbMe
     msg_data.gen_ready_pair(0)
 }
 
-const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
+//const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
 
 pub fn gen_sensor_accel_data(state: &mut VehicleState, device_id: u32) -> SensorAccelData {
     let xacc = state.xacc.read();
@@ -314,15 +291,15 @@ pub fn gen_sensor_accel_data(state: &mut VehicleState, device_id: u32) -> Sensor
         x: xacc,
         y: yacc,
         z: zacc,
-        integral_dt: 0,
-        x_integral: 0.0,
-        y_integral: 0.0,
-        z_integral: 0.0,
+        integral_dt: 4000,
+        x_integral: 3.46E-05,
+        y_integral: 1.85E-05,
+        z_integral: 3.92E-02,
         temperature: state.temperature,
-        scaling: 0.0,
-        x_raw: (xacc / ACCEL_REBASE_FACTOR) as i16,
-        y_raw: (yacc / ACCEL_REBASE_FACTOR) as i16,
-        z_raw: (zacc / ACCEL_REBASE_FACTOR) as i16,
+        scaling: 1.19E-07,
+        x_raw: 32767, //(xacc / ACCEL_REBASE_FACTOR) as i16,
+        y_raw: 32767, //(yacc / ACCEL_REBASE_FACTOR) as i16,
+        z_raw: 32767, //(zacc / ACCEL_REBASE_FACTOR) as i16,
     }
 }
 
@@ -334,11 +311,6 @@ pub fn gen_wrapped_sensor_mag(state: &mut VehicleState) -> (UorbHeader, UorbMess
     msg_data.gen_ready_pair(0)
 }
 
-
-//timestamp,error_count,device_id,x,y,z,temperature,scaling,x_raw,y_raw,z_raw,is_external
-//2158473,0,196616,0.0015089384,0.004138131,0.003205314,0.0,0.0,12657,32767,26888,0
-//2168524,0,196616,0.0014928965,0.0041835657,0.0031163925,0.0,0.0,12523,32767,26142,0
-//2180488,0,196616,0.0014487964,0.004125371,0.0031284278,0.0,0.0,12153,32767,26243,0
 
 //const MAG_REBASE_FACTOR : f32 = 112657.0/0.0015089384;
 const MAG_REBASE_FACTOR : f32 = 8220444.151;
@@ -421,7 +393,6 @@ pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData 
 
 
 pub fn gen_fast_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
-    increment_simulated_time(state);
 
     let mut msg_list = vec![];
     msg_list.push( gen_wrapped_timesync_status(state) );
@@ -441,7 +412,6 @@ pub fn gen_slow_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, Uo
     let mut msg_list = vec![];
     msg_list.push(gen_wrapped_gps_position_msg(state));
     msg_list.push(gen_wrapped_battery_status(state));
-//    msg_list.push( gen_wrapped_vehicle_global_position_msg(state) );
     msg_list
 }
 
