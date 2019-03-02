@@ -1,10 +1,10 @@
 
+use std::f32::NAN;
 
 use uorb_codec::common::*;
 use uorb_codec::{self, UorbHeader, UorbMsgMeta};
 use std::time::{Duration, SystemTime};
 use sensulator::Sensulator;
-use std::f32::NAN;
 
 pub const WHOLE_DEGREE_MULT: f32 = 1E7;
 
@@ -33,40 +33,40 @@ pub type WGS84Degrees = f32;
 //const ACCEL_ABS_ERR : MetersPerSecondPerSecond = 5e-2;
 //const ACCEL_REL_ERR : MetersPerSecondPerSecond = 1e-4;
 
-const ACCEL_ABS_ERR : f32 = 1e-2;
-const ACCEL_REL_ERR : f32 = 1e-4;
+const MIN_SENSOR_ABS_ERR:f32  = 2E-5;
+const MIN_SENSOR_REL_ERR:f32  = 1E-7;
 
-const GYRO_ABS_ERR : f32 = 1e-2;
-const GYRO_REL_ERR : f32 = 1e-4;
+const ACCEL_ABS_ERR : f32 = 1e-4;
+const ACCEL_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
 
-//const MAG_ABS_ERR : f32 = 5e-3;
-//const MAG_REL_ERR : f32 = 1e-4;
+const GYRO_ABS_ERR : f32 = 1e-4;
+const GYRO_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
 
-const MAG_ABS_ERR : f32 = 1e-2;
-const MAG_REL_ERR : f32 = 1e-4;
+const MAG_ABS_ERR : f32 = 0.000026483;
+const MAG_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
 
-const GPS_DEGREES_ABS_ERR: WGS84Degrees = 1e-6;
-const GPS_DEGREES_REL_ERR: WGS84Degrees = 1e-8;
+const GPS_DEGREES_ABS_ERR: WGS84Degrees = 1E-4;
+const GPS_DEGREES_REL_ERR: WGS84Degrees = 1E-6;
 
 // this range appears to allow EKF fusion to begin
 const ALT_ABS_ERR: Meters = 10.0;
-const ALT_REL_ERR: Meters = 5.0;
+const ALT_REL_ERR: Meters = 5.0; //1539.785
 
 
 const ACCEL_ONE_G: MetersPerSecondPerSecond = 9.80665;
 
 /// Fake home coordinates
-const HOME_LAT: WGS84Degrees = 37.8001504;
-const HOME_LON: WGS84Degrees = -122.1997440;
+const HOME_LAT: WGS84Degrees =  37.8001024;
+const HOME_LON: WGS84Degrees =  -122.1997184;
 
 const HOME_ALT: Meters = 500.0;
+
 //const HOME_MAG:[f32; 3] = [ 22535E-5, 5384E-5, 42217E-5 ];
-const HOME_MAG:[f32; 3] = [ 0.001, 0.001, 0.001 ];
+const HOME_MAG:[f32; 3] = [ 0.00144767145, 0.004156071878, 0.003152540706 ];
 
-const LANDED_ACCEL_VALS:[MetersPerSecondPerSecond; 3] = [1E-3, 1E-3, ACCEL_ONE_G];
-//const LANDED_ACCEL_VAL: MetersPerSecondPerSecond = 1E-3;
+const LANDED_ACCEL_VALS:[MetersPerSecondPerSecond; 3] = [MIN_SENSOR_ABS_ERR, MIN_SENSOR_ABS_ERR, ACCEL_ONE_G];
 
-const LANDED_GYRO_VAL: f32 = 1E-4;
+const LANDED_GYRO_VALS:[f32; 3] = [0.0020351426,0.0028725443,0.009010567];
 
 pub struct VehicleState {
     boot_time: SystemTime,
@@ -122,9 +122,9 @@ pub fn initial_vehicle_state() ->  VehicleState {
         // this range appears to allow EKF fusion to begin
         alt: Sensulator::new(HOME_ALT , ALT_ABS_ERR, ALT_REL_ERR),
 
-        xgyro: Sensulator::new(LANDED_GYRO_VAL, GYRO_ABS_ERR, GYRO_REL_ERR),
-        ygyro: Sensulator::new(LANDED_GYRO_VAL, GYRO_ABS_ERR, GYRO_REL_ERR),
-        zgyro: Sensulator::new(LANDED_GYRO_VAL, GYRO_ABS_ERR, GYRO_REL_ERR),
+        xgyro: Sensulator::new(LANDED_GYRO_VALS[0], GYRO_ABS_ERR, GYRO_REL_ERR),
+        ygyro: Sensulator::new(LANDED_GYRO_VALS[1], GYRO_ABS_ERR, GYRO_REL_ERR),
+        zgyro: Sensulator::new(LANDED_GYRO_VALS[2], GYRO_ABS_ERR, GYRO_REL_ERR),
 
         xacc:  Sensulator::new(LANDED_ACCEL_VALS[0], ACCEL_ABS_ERR, ACCEL_REL_ERR),
         yacc:  Sensulator::new(LANDED_ACCEL_VALS[1], ACCEL_ABS_ERR, ACCEL_REL_ERR),
@@ -200,41 +200,6 @@ pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
 }
 
 
-//pub fn gen_wrapped_vehicle_global_position_msg(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
-//    let msg_data = gen_vehicle_global_position_data(state);
-//    msg_data.gen_ready_pair(0)
-//}
-//
-//pub fn gen_vehicle_global_position_data(state: &mut VehicleState) -> VehicleGlobalPositionData {
-//    let alt = state.alt.read();
-//    VehicleGlobalPositionData {
-//        timestamp: state.simulated_usecs,
-//        lat: state.lat.read() as f64,
-//        lon: state.lon.read() as f64,
-//        alt:  alt,
-//        alt_ellipsoid: alt,
-//        delta_alt: 0.0,
-//        yaw: 0.0,
-//        eph: 0.3,
-//        epv: 0.4,
-//        terrain_alt: 0.0,
-//        lat_lon_reset_counter: 0,
-//        alt_reset_counter: 0,
-//        terrain_alt_valid: false,
-//        dead_reckoning: false,
-//
-//        vel_n: 0.0,
-//        vel_e: 0.0,
-//        vel_d: 0.0,
-//    }
-//}
-
-
-
-
-
-
-//TODO move this wrapping into uorb-codec itself
 pub fn gen_wrapped_gps_position_msg(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_gps_msg_data(state);
     msg_data.gen_ready_pair(0)
@@ -242,20 +207,7 @@ pub fn gen_wrapped_gps_position_msg(state: &mut VehicleState) -> (UorbHeader, Uo
 
 pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
     let alt = state.alt.read();
-
-//    _report_gps_pos.timestamp = hrt_absolute_time();
-//    _report_gps_pos.lat = gps.lat;
-//    _report_gps_pos.lon = gps.lon;
-//    _report_gps_pos.alt = gps.alt;
-//    _report_gps_pos.eph = (float)gps.eph * 1e-2f;
-//    _report_gps_pos.epv = (float)gps.epv * 1e-2f;
-//    _report_gps_pos.vel_m_s = (float)(gps.vel) / 100.0f;
-//    _report_gps_pos.vel_n_m_s = (float)(gps.vn) / 100.0f;
-//    _report_gps_pos.vel_e_m_s = (float)(gps.ve) / 100.0f;
-//    _report_gps_pos.vel_d_m_s = (float)(gps.vd) / 100.0f;
-//    _report_gps_pos.cog_rad = (float)(gps.cog) * 3.1415f / (100.0f * 180.0f);
-//    _report_gps_pos.heading = NAN;
-//    _report_gps_pos.heading_offset = NAN;
+    let alt_mm = (alt * 1E3) as i32;
 
     VehicleGpsPositionData {
         timestamp: state.simulated_usecs,
@@ -263,7 +215,7 @@ pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
 
         lat: (state.lat.read() * WHOLE_DEGREE_MULT) as i32,
         lon: (state.lon.read() * WHOLE_DEGREE_MULT) as i32,
-        alt: (alt * 1E3) as i32,
+        alt: alt_mm,
         alt_ellipsoid: 0,
 
         s_variance_m_s: 0.0,
@@ -286,7 +238,7 @@ pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
         vel_ned_valid: false,
 
         timestamp_time_relative: 0,
-        satellites_used: 10,
+        satellites_used: 11,
         heading: NAN,
         heading_offset: NAN,
     }
@@ -301,7 +253,14 @@ pub fn gen_wrapped_sensor_gyro(state: &mut VehicleState) -> (UorbHeader, UorbMes
 
 }
 
-const GYRO_REBASE_FACTOR:f32 =  1E3;
+
+//timestamp,error_count,device_id,x,y,z,integral_dt,x_integral,y_integral,z_integral,temperature,scaling,x_raw,y_raw,z_raw
+//2161376,0,2293768,0.0020351426,0.0028725443,0.009010567,3200,6.511943e-06,9.221726e-06,2.8863593e-05,32.0,1.1920929e-07,17072,24096,32767
+//2164952,0,2293768,0.0020540587,0.002876822,0.008949214,3576,7.311492e-06,1.0279867e-05,3.211209e-05,32.0,1.1920929e-07,17230,24132,32767
+//2173364,0,2293768,0.0020801222,0.0028458235,0.008959386,2360,4.8508505e-06,6.704657e-06,2.1163523e-05,32.0,1.1920929e-07,17449,23872,32767
+
+
+const GYRO_REBASE_FACTOR:f32 =  17072.0/0.0020351426;
 
 pub fn gen_sensor_gyro_data(state: &mut VehicleState, device_id: u32) -> SensorGyroData {
 //    println!("gyro time: {:x} {:x}",
@@ -320,12 +279,13 @@ pub fn gen_sensor_gyro_data(state: &mut VehicleState, device_id: u32) -> SensorG
         x: xgyro,
         y: ygyro,
         z: zgyro,
-        integral_dt: 5 * 1000000,
-        x_integral: 1.0,
-        y_integral: 1.0,
-        z_integral: 1.0,
+        integral_dt:3200,
+        //6.511943e-06,9.221726e-06,2.8863593e-05
+        x_integral: 6.511943e-06,
+        y_integral: 9.221726e-06,
+        z_integral: 2.8863593e-05,
         temperature: state.temperature,
-        scaling: 0.0,
+        scaling: 1.1920929e-07,
         x_raw: (xgyro * GYRO_REBASE_FACTOR) as i16,
         y_raw: (ygyro * GYRO_REBASE_FACTOR) as i16,
         z_raw: (zgyro * GYRO_REBASE_FACTOR) as i16,
@@ -374,7 +334,14 @@ pub fn gen_wrapped_sensor_mag(state: &mut VehicleState) -> (UorbHeader, UorbMess
     msg_data.gen_ready_pair(0)
 }
 
-const MAG_REBASE_FACTOR : f32 = 1E3;
+
+//timestamp,error_count,device_id,x,y,z,temperature,scaling,x_raw,y_raw,z_raw,is_external
+//2158473,0,196616,0.0015089384,0.004138131,0.003205314,0.0,0.0,12657,32767,26888,0
+//2168524,0,196616,0.0014928965,0.0041835657,0.0031163925,0.0,0.0,12523,32767,26142,0
+//2180488,0,196616,0.0014487964,0.004125371,0.0031284278,0.0,0.0,12153,32767,26243,0
+
+//const MAG_REBASE_FACTOR : f32 = 112657.0/0.0015089384;
+const MAG_REBASE_FACTOR : f32 = 8220444.151;
 
 pub fn gen_sensor_mag_data(state: &mut VehicleState, device_id: u32) -> SensorMagData {
     let xmag = state.xmag.read();
@@ -477,3 +444,6 @@ pub fn gen_slow_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, Uo
 //    msg_list.push( gen_wrapped_vehicle_global_position_msg(state) );
     msg_list
 }
+
+
+

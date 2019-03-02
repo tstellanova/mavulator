@@ -6,6 +6,8 @@ use std::time::{Duration};
 use mavulator::*;
 
 use uorb_codec::common::*;
+use connection::UorbConnection;
+use crate::simulator::VehicleState;
 
 fn main() {
     println!("starting");
@@ -22,32 +24,10 @@ fn main() {
     println!("connected");
 
     thread::spawn({
-        let conn = vehicle_conn.clone();
+        let conn:Arc<Box<UorbConnection+Send+Sync>> = vehicle_conn.clone();
+        let vehicle_state:Arc<RwLock<VehicleState>> = shared_vehicle_state.clone();
         move || {
-            let mut last_slow_cadence_send: u64 = 0;
-            let vehicle_state = shared_vehicle_state.clone();
-            loop {
-                //Fast cadence loop, 1KHz approx
-                for _i in 0..1000 {
-                    let mut state_w = vehicle_state.write().unwrap();
-                    let res = send_fast_cadence_sensors(  &**conn, &mut state_w );
-                    if res.is_err() {
-                        println!("send_fast_cadence_sensors failed: {:?}",res);
-                        return;
-                    }
-
-                    if state_w.elapsed_since(last_slow_cadence_send) > 1000000 {
-                        last_slow_cadence_send = state_w.get_simulated_usecs();
-                        let res = send_slow_cadence_sensors(&**conn, &mut state_w);
-                        if res.is_err()  {
-                            println!("send_fast_cadence_sensors failed: {:?}",res);
-                            return;
-                        }
-                    }
-                }
-                //thread::yield_now();
-                thread::sleep(Duration::from_millis(10));
-            }
+            simulator_loop(vehicle_state, conn);
         }
     });
 
@@ -59,7 +39,7 @@ fn main() {
                         //println!("time: {}", m.timestamp);
                     },
                     UorbMessage::VehicleStatus(_m) => {
-
+                        //println!("time: {}", m.timestamp);
                     },
                     _ => {
                         println!("recv: {:?}", msg);
@@ -82,3 +62,4 @@ fn main() {
         }
     }
 }
+
