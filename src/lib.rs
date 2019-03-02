@@ -32,7 +32,7 @@ pub fn simulator_loop(vehicle_state:Arc<RwLock<VehicleState>> , conn:Arc<Box<Uor
     let mut last_fast_cadence_send: u64 = 0; //400Hz sensors
     loop {
         // TODO modfy this when we decouple from realtime clock
-        thread::sleep(Duration::from_micros(250));
+        thread::sleep(Duration::from_micros(125));
         let mut msg_list: Vec<(UorbHeader, UorbMessage)> = vec![];
         {
             let mut state_w = vehicle_state.write().unwrap();
@@ -45,8 +45,8 @@ pub fn simulator_loop(vehicle_state:Arc<RwLock<VehicleState>> , conn:Arc<Box<Uor
                 last_fast_cadence_send = state_w.get_simulated_usecs();
             }
 
-            // Medium cadence: about 100Hz
-            if state_w.elapsed_since(last_med_cadence_send) > 10000 {
+            // Medium cadence: about 100Hz  10000 usec
+            if state_w.elapsed_since(last_med_cadence_send) > 25000 {
                 let msgs = simulator::gen_med_cadence_sensors(&mut state_w);
                 msg_list.extend(msgs);
                 last_med_cadence_send = state_w.get_simulated_usecs();
