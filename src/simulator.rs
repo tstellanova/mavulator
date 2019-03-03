@@ -401,9 +401,8 @@ pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData 
 pub fn gen_fast_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
     let mut msg_list = vec![];
     msg_list.push( gen_wrapped_timesync_status(state) );
-    increment_simulated_time(state); //TODO unnecessary?
-    msg_list.push( gen_wrapped_sensor_gyro(state) );
     msg_list.push( gen_wrapped_sensor_accel(state) );
+    msg_list.push( gen_wrapped_sensor_gyro(state) );
     msg_list
 }
 

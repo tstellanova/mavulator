@@ -46,7 +46,7 @@ pub fn simulator_loop(vehicle_state:Arc<RwLock<VehicleState>> , conn:Arc<Box<Uor
             }
 
             // Medium cadence: about 100Hz  10000 usec
-            if state_w.elapsed_since(last_med_cadence_send) > 25000 {
+            if state_w.elapsed_since(last_med_cadence_send) > 10000 {
                 let msgs = simulator::gen_med_cadence_sensors(&mut state_w);
                 msg_list.extend(msgs);
                 last_med_cadence_send = state_w.get_simulated_usecs();
