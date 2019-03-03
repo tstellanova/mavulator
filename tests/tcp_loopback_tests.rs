@@ -53,6 +53,7 @@ mod test_tcp_connections {
                 let header = uorb_codec::UorbHeader {
                     version: uorb_codec::UORB_MAGIC_V1,
                     hash: VehicleStatusData::MSG_HASH_CODE,
+                    timestamp: 666,
                     instance_id: 17,
                     payload_len: VehicleStatusData::ENCODED_LEN,
                 };

@@ -160,7 +160,7 @@ pub fn increment_simulated_time(state: &mut VehicleState) {
 
 pub fn gen_wrapped_battery_status(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_battery_status_data(state);
-    msg_data.gen_ready_pair(0)
+    msg_data.gen_ready_pair(0,state.simulated_usecs)
 }
 
 pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
@@ -194,7 +194,7 @@ pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
 
 pub fn gen_wrapped_gps_position_msg(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_gps_msg_data(state);
-    msg_data.gen_ready_pair(0)
+    msg_data.gen_ready_pair(0,state.simulated_usecs)
 }
 
 pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
@@ -241,8 +241,7 @@ const SIM_GYRO_DEVICE_ID: u32 = 2293768;
 
 pub fn gen_wrapped_sensor_gyro(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_gyro_data(state, SIM_GYRO_DEVICE_ID);
-    msg_data.gen_ready_pair(0)
-
+    msg_data.gen_ready_pair(0,state.simulated_usecs)
 }
 
 
@@ -278,7 +277,7 @@ const SIM_ACCEL_DEVICE_ID:u32 = 1376264;
 
 pub fn gen_wrapped_sensor_accel(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_accel_data(state, SIM_ACCEL_DEVICE_ID);
-    msg_data.gen_ready_pair(0)
+    msg_data.gen_ready_pair(0,state.simulated_usecs)
 }
 
 //const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
@@ -312,7 +311,7 @@ const SIM_MAG_DEVCE_ID: u32 = 196616;
 
 pub fn gen_wrapped_sensor_mag(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_mag_data(state, SIM_MAG_DEVCE_ID);
-    msg_data.gen_ready_pair(0)
+    msg_data.gen_ready_pair(0,state.simulated_usecs)
 }
 
 
@@ -344,7 +343,7 @@ const SIM_BARO_DEVICE_ID: u32 = 478459;
 
 pub fn gen_wrapped_sensor_baro(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_baro_data(state, SIM_BARO_DEVICE_ID);
-    msg_data.gen_ready_pair(0)
+    msg_data.gen_ready_pair(0,state.simulated_usecs)
 }
 
 pub fn gen_sensor_baro_data(state: &mut VehicleState, device_id: u32) -> SensorBaroData {
@@ -362,7 +361,7 @@ const SIM_DIFF_PRESS_DEVICE_ID: u32 = 0;
 
 pub fn gen_wrapped_differential_pressure(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_differential_pressure_data(state, SIM_DIFF_PRESS_DEVICE_ID);
-    msg_data.gen_ready_pair(0)
+    msg_data.gen_ready_pair(0,state.simulated_usecs)
 }
 
 pub fn gen_differential_pressure_data(state: &mut VehicleState, device_id: u32) -> DifferentialPressureData {
@@ -382,7 +381,7 @@ pub fn gen_differential_pressure_data(state: &mut VehicleState, device_id: u32) 
 
 pub fn gen_wrapped_timesync_status(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_timesync_status_data(state);
-    msg_data.gen_ready_pair(0)
+    msg_data.gen_ready_pair(0,state.simulated_usecs)
 }
 
 pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData {
