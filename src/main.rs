@@ -12,7 +12,6 @@ use crate::simulator::VehicleState;
 fn main() {
     println!("starting");
 
-    let shared_vehicle_state = Arc::new(RwLock::new(simulator::initial_vehicle_state()));
     let selector = "tcpout:127.0.0.1:4560";
     let conn = connection::select_protocol(selector);
     if !conn.is_ok() {
@@ -22,6 +21,9 @@ fn main() {
 
     let vehicle_conn = Arc::new(conn.unwrap());
     println!("connected");
+
+    //don't create the shared state object until after we've connected
+    let shared_vehicle_state = Arc::new(RwLock::new(simulator::initial_vehicle_state()));
 
     thread::spawn({
         let conn:Arc<Box<UorbConnection+Send+Sync>> = vehicle_conn.clone();
