@@ -279,11 +279,18 @@ pub fn gen_sensor_gyro_data(state: &mut VehicleState, device_id: u32) -> SensorG
 }
 
 
-const SIM_ACCEL_DEVICE_ID:u32 = 1376264;
 
-pub fn gen_wrapped_sensor_accel(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
-    let msg_data = gen_sensor_accel_data(state, SIM_ACCEL_DEVICE_ID);
+const SIM_ACCEL0_DEVICE_ID:u32 = 1376264;
+const SIM_ACCEL1_DEVICE_ID:u32 = 1310728;
+
+pub fn gen_wrapped_sensor_accel0(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
+    let msg_data = gen_sensor_accel_data(state, SIM_ACCEL0_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.simulated_usecs)
+}
+
+pub fn gen_wrapped_sensor_accel1(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
+    let msg_data = gen_sensor_accel_data(state, SIM_ACCEL1_DEVICE_ID);
+    msg_data.gen_ready_pair(1, state.simulated_usecs)
 }
 
 //const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
@@ -405,7 +412,8 @@ pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData 
 /// Accel rate should be 400 Hz
 pub fn gen_fast_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
     let mut msg_list = vec![];
-    msg_list.push( gen_wrapped_sensor_accel(state) );
+    msg_list.push( gen_wrapped_sensor_accel0(state) );
+    msg_list.push( gen_wrapped_sensor_accel1(state) );
     msg_list.push( gen_wrapped_sensor_gyro(state) );
     msg_list
 }
