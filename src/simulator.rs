@@ -29,24 +29,28 @@ pub type WGS84Degrees = f32;
 
 //pub type WholeMillimeters = i32;
 
+const MIN_SENSOR_ABS_ERR:f32 = 1E-6;
+const MIN_SENSOR_REL_ERR:f32  = 1E-5;
 
-const MIN_SENSOR_REL_ERR:f32  = 1E-7;
+const GYRO_ABS_ERR : f32 = MIN_SENSOR_ABS_ERR;
+const GYRO_REL_ERR : f32 = 0.0000266;
 
-const GYRO_ABS_ERR : f32 = 0.0000266;
-const GYRO_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
+const ACCEL_ABS_ERR : f32 = MIN_SENSOR_ABS_ERR;
+const ACCEL_REL_ERR : f32 = 0.0000267;
 
-const ACCEL_ABS_ERR : f32 = 0.0000267;
-const ACCEL_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
+const MAG_ABS_ERR : f32 = MIN_SENSOR_ABS_ERR;
+const MAG_REL_ERR : f32 = 0.0000265;
 
-const MAG_ABS_ERR : f32 = 0.0000265;
-const MAG_REL_ERR : f32 = MIN_SENSOR_REL_ERR;
-
-const GPS_DEGREES_ABS_ERR: WGS84Degrees = 1E-6;
+const GPS_DEGREES_ABS_ERR: WGS84Degrees = MIN_SENSOR_ABS_ERR;
 const GPS_DEGREES_REL_ERR: WGS84Degrees = MIN_SENSOR_REL_ERR;
 
 // this range appears to allow EKF fusion to begin
-const ALT_ABS_ERR: Meters = 1.5;
-const ALT_REL_ERR: Meters = MIN_SENSOR_REL_ERR;
+const ALT_ABS_ERR: Meters = MIN_SENSOR_ABS_ERR;
+const ALT_REL_ERR: Meters = 1.5;
+
+const DIFF_PRESS_ABS_ERR: f32 = MIN_SENSOR_ABS_ERR;
+const DIFF_PRESS_REL_ERR: f32 = 1E-3;
+
 
 //const ACCEL_ONE_G: MetersPerSecondPerSecond = 9.80665;
 
@@ -66,6 +70,7 @@ const LANDED_GYRO_VALS:[f32; 3] = [0.0020351426,0.0028725443,0.009010567];
 pub struct VehicleState {
     boot_time: SystemTime,
     simulated_usecs: u64,
+    abstime_offset: u64,
     temperature: f32,
 
     ///--- Data arriving directly from sensors:
@@ -113,9 +118,10 @@ pub fn initial_vehicle_state() ->  VehicleState {
     VehicleState {
         boot_time: SystemTime::now(),
         simulated_usecs: 0,
-        temperature: 25.0,
+        abstime_offset: 500,
 
-        lat: Sensulator::new(HOME_LAT , GPS_DEGREES_ABS_ERR, GPS_DEGREES_REL_ERR),
+        temperature: 25.0,
+        lat: Sensulator::new(HOME_LAT, GPS_DEGREES_ABS_ERR, GPS_DEGREES_REL_ERR),
         lon: Sensulator::new(HOME_LON , GPS_DEGREES_ABS_ERR, GPS_DEGREES_REL_ERR),
         // this range appears to allow EKF fusion to begin
         alt: Sensulator::new(HOME_ALT , ALT_ABS_ERR, ALT_REL_ERR),
@@ -133,7 +139,7 @@ pub fn initial_vehicle_state() ->  VehicleState {
         zmag: Sensulator::new(HOME_MAG[2], MAG_ABS_ERR, MAG_REL_ERR),
 
         //diff press requires some error in order to pass preflight checks
-        diff_press: Sensulator::new(0.0, 1E-3, MIN_SENSOR_REL_ERR),
+        diff_press: Sensulator::new(0.0, DIFF_PRESS_ABS_ERR, DIFF_PRESS_REL_ERR),
     }
 }
 
@@ -160,7 +166,7 @@ pub fn increment_simulated_time(state: &mut VehicleState) {
 
 pub fn gen_wrapped_battery_status(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_battery_status_data(state);
-    msg_data.gen_ready_pair(0,state.simulated_usecs)
+    msg_data.gen_ready_pair(0, state.simulated_usecs)
 }
 
 pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
@@ -194,7 +200,7 @@ pub fn gen_battery_status_data(state: &VehicleState) -> BatteryStatusData {
 
 pub fn gen_wrapped_gps_position_msg(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_gps_msg_data(state);
-    msg_data.gen_ready_pair(0,state.simulated_usecs)
+    msg_data.gen_ready_pair(0, state.simulated_usecs)
 }
 
 pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
@@ -241,7 +247,7 @@ const SIM_GYRO_DEVICE_ID: u32 = 2293768;
 
 pub fn gen_wrapped_sensor_gyro(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_gyro_data(state, SIM_GYRO_DEVICE_ID);
-    msg_data.gen_ready_pair(0,state.simulated_usecs)
+    msg_data.gen_ready_pair(0, state.simulated_usecs)
 }
 
 
@@ -260,10 +266,10 @@ pub fn gen_sensor_gyro_data(state: &mut VehicleState, device_id: u32) -> SensorG
         x: xgyro,
         y: ygyro,
         z: zgyro,
-        integral_dt:4000,
-        x_integral: 6.511943e-06,
-        y_integral: 9.221726e-06,
-        z_integral: 2.8863593e-05,
+        integral_dt:0 , //4000,
+        x_integral: 0.0, //6.511943e-06,
+        y_integral: 0.0, //9.221726e-06,
+        z_integral: 0.0, //2.8863593e-05,
         temperature: state.temperature,
         scaling: 1.1920929e-07,
         x_raw: (xgyro * GYRO_REBASE_FACTOR) as i16,
@@ -277,7 +283,7 @@ const SIM_ACCEL_DEVICE_ID:u32 = 1376264;
 
 pub fn gen_wrapped_sensor_accel(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_accel_data(state, SIM_ACCEL_DEVICE_ID);
-    msg_data.gen_ready_pair(0,state.simulated_usecs)
+    msg_data.gen_ready_pair(0, state.simulated_usecs)
 }
 
 //const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
@@ -294,10 +300,10 @@ pub fn gen_sensor_accel_data(state: &mut VehicleState, device_id: u32) -> Sensor
         x: xacc,
         y: yacc,
         z: zacc,
-        integral_dt: 4000,
-        x_integral: 3.46E-05,
-        y_integral: 1.85E-05,
-        z_integral: 3.92E-02,
+        integral_dt: 0, //4000,
+        x_integral: 0.0, //3.46E-05,
+        y_integral: 0.0, //1.85E-05,
+        z_integral: 0.0, //3.92E-02,
         temperature: state.temperature,
         scaling: 1.19E-07,
         x_raw: 32767, //(xacc / ACCEL_REBASE_FACTOR) as i16,
@@ -311,7 +317,7 @@ const SIM_MAG_DEVCE_ID: u32 = 196616;
 
 pub fn gen_wrapped_sensor_mag(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_mag_data(state, SIM_MAG_DEVCE_ID);
-    msg_data.gen_ready_pair(0,state.simulated_usecs)
+    msg_data.gen_ready_pair(0, state.simulated_usecs)
 }
 
 
@@ -343,7 +349,7 @@ const SIM_BARO_DEVICE_ID: u32 = 478459;
 
 pub fn gen_wrapped_sensor_baro(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_baro_data(state, SIM_BARO_DEVICE_ID);
-    msg_data.gen_ready_pair(0,state.simulated_usecs)
+    msg_data.gen_ready_pair(0, state.simulated_usecs)
 }
 
 pub fn gen_sensor_baro_data(state: &mut VehicleState, device_id: u32) -> SensorBaroData {
@@ -361,7 +367,7 @@ const SIM_DIFF_PRESS_DEVICE_ID: u32 = 0;
 
 pub fn gen_wrapped_differential_pressure(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_differential_pressure_data(state, SIM_DIFF_PRESS_DEVICE_ID);
-    msg_data.gen_ready_pair(0,state.simulated_usecs)
+    msg_data.gen_ready_pair(0, state.simulated_usecs)
 }
 
 pub fn gen_differential_pressure_data(state: &mut VehicleState, device_id: u32) -> DifferentialPressureData {
@@ -369,7 +375,7 @@ pub fn gen_differential_pressure_data(state: &mut VehicleState, device_id: u32) 
 
     DifferentialPressureData {
         timestamp: state.simulated_usecs,
-        device_id: device_id,
+        device_id,
         error_count: 0,
         differential_pressure_raw_pa:speed_pressure,
         differential_pressure_filtered_pa: speed_pressure,
@@ -378,18 +384,18 @@ pub fn gen_differential_pressure_data(state: &mut VehicleState, device_id: u32) 
 }
 
 
-
+/// We use timsync_status to set the initial px4_timestart_monotonic
 pub fn gen_wrapped_timesync_status(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_timesync_status_data(state);
-    msg_data.gen_ready_pair(0,state.simulated_usecs)
+    msg_data.gen_ready_pair(0, state.abstime_offset)
 }
 
 pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData {
     TimesyncStatusData {
-        timestamp: state.simulated_usecs,
-        remote_timestamp: state.simulated_usecs,
-        observed_offset: 0,
-        estimated_offset: 0,
+        timestamp: state.abstime_offset,
+        remote_timestamp: state.abstime_offset,
+        observed_offset: state.abstime_offset as i64,
+        estimated_offset: state.abstime_offset as i64,
         round_trip_time: 2, //micros
     }
 }
@@ -399,7 +405,6 @@ pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData 
 /// Accel rate should be 400 Hz
 pub fn gen_fast_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
     let mut msg_list = vec![];
-    msg_list.push( gen_wrapped_timesync_status(state) );
     msg_list.push( gen_wrapped_sensor_accel(state) );
     msg_list.push( gen_wrapped_sensor_gyro(state) );
     msg_list

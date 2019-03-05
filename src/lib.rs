@@ -2,7 +2,7 @@
 use std::io::Error;
 use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::{Duration};
+//use std::time::{Duration};
 use uorb_codec::{UorbHeader, UorbMessage};
 
 pub mod connection;
@@ -27,13 +27,25 @@ pub fn send_all_messages( conn: &UorbConnection,  msg_list: Vec<(UorbHeader, Uor
 /// Airspeed should be 100 Hz
 ///
 pub fn simulator_loop(vehicle_state:Arc<RwLock<VehicleState>> , conn:Arc<Box<UorbConnection+Send+Sync>>) {
+    {
+        let mut state_w = vehicle_state.write().unwrap();
+        //send a first message to establish a time base (abs time offset)
+        let (hdr, msg) = simulator::gen_wrapped_timesync_status(&mut state_w);
+        let first_msg = vec![(hdr, msg)];
+        let res = send_all_messages(&**conn, first_msg);
+        if res.is_err() {
+            println!("first send failed: {:?}", res);
+            return;
+        }
+    }
+
     let mut last_slow_cadence_send: u64 = 0; //1Hz sensors
     let mut last_med_cadence_send: u64 = 0; //100Hz sensors
     let mut last_fast_cadence_send: u64 = 0; //400Hz sensors
     loop {
         // TODO modfy this when we decouple from realtime clock
-        //thread::yield_now();
-        thread::sleep(Duration::from_micros(50));
+        thread::yield_now();
+        //thread::sleep(Duration::from_micros(50));
         let mut msg_list: Vec<(UorbHeader, UorbMessage)> = vec![];
         {
             let mut state_w = vehicle_state.write().unwrap();
@@ -41,7 +53,7 @@ pub fn simulator_loop(vehicle_state:Arc<RwLock<VehicleState>> , conn:Arc<Box<Uor
 
             //Fast cadence: 400Hz approx
             if (0 ==  last_fast_cadence_send) ||
-                (state_w.elapsed_since(last_fast_cadence_send) > 500) {
+                (state_w.elapsed_since(last_fast_cadence_send) > 2500) {
                 let msgs = simulator::gen_fast_cadence_sensors(&mut state_w);
                 msg_list.extend(msgs);
                 last_fast_cadence_send = state_w.get_simulated_usecs();
@@ -49,7 +61,7 @@ pub fn simulator_loop(vehicle_state:Arc<RwLock<VehicleState>> , conn:Arc<Box<Uor
 
             // Medium cadence: about 100Hz  10000 usec
             if (0 ==  last_med_cadence_send) ||
-                (state_w.elapsed_since(last_med_cadence_send) > 2000) {
+                (state_w.elapsed_since(last_med_cadence_send) > 10000) {
                 let msgs = simulator::gen_med_cadence_sensors(&mut state_w);
                 msg_list.extend(msgs);
                 last_med_cadence_send = state_w.get_simulated_usecs();
