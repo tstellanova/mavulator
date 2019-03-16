@@ -73,6 +73,7 @@ pub struct VehicleState {
     abstime_offset: u64,
     temperature: f32,
 
+
     ///--- Data arriving directly from sensors:
     /// GPS
     lat: Sensulator,
@@ -110,6 +111,10 @@ impl VehicleState {
 
     pub fn get_simulated_usecs(&self) -> u64 {
         self.simulated_usecs
+    }
+
+    pub fn elapsed(&self) -> Duration {
+        self.boot_time.elapsed().unwrap()
     }
 }
 
@@ -244,12 +249,16 @@ pub fn gen_gps_msg_data(state: &mut VehicleState) -> VehicleGpsPositionData {
 
 
 const SIM_GYRO0_DEVICE_ID: u32 = 2293768;
+const SIM_GYRO1_DEVICE_ID: u32 = 3141593;
 
 pub fn gen_wrapped_sensor_gyro0(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_gyro_data(state, SIM_GYRO0_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.simulated_usecs)
 }
-
+pub fn gen_wrapped_sensor_gyro1(state: &mut VehicleState) -> (UorbHeader, UorbMessage) {
+    let msg_data = gen_sensor_gyro_data(state, SIM_GYRO1_DEVICE_ID);
+    msg_data.gen_ready_pair(1, state.simulated_usecs)
+}
 
 const GYRO_REBASE_FACTOR:f32 =  8388463.696; //17072.0/0.0020351426;
 
@@ -407,14 +416,24 @@ pub fn gen_timesync_status_data(state: &mut VehicleState) -> TimesyncStatusData 
     }
 }
 
+const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(60);
+//const DURA_UNTIL_ACCEL1_FAILURE:Duration = Duration::from_secs(120);
 
 /// Gyro rate should be 400 Hz
 /// Accel rate should be 400 Hz
 pub fn gen_fast_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
+
     let mut msg_list = vec![];
-    msg_list.push( gen_wrapped_sensor_accel0(state) );
-    msg_list.push( gen_wrapped_sensor_accel1(state) );
+    if state.elapsed() < DURA_UNTIL_ACCEL0_FAILURE {
+        msg_list.push(gen_wrapped_sensor_accel0(state));
+        msg_list.push( gen_wrapped_sensor_accel1(state) );
+    }
+//    if state.elapsed() < DURA_UNTIL_ACCEL1_FAILURE {
+//        msg_list.push( gen_wrapped_sensor_accel1(state) );
+//    }
+
     msg_list.push( gen_wrapped_sensor_gyro0(state) );
+    msg_list.push( gen_wrapped_sensor_gyro1(state) );
     msg_list
 }
 

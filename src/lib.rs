@@ -2,7 +2,7 @@
 use std::io::Error;
 use std::sync::{Arc, RwLock};
 use std::thread;
-//use std::time::{Duration};
+use std::time::{Duration};
 use uorb_codec::{UorbHeader, UorbMessage};
 
 pub mod connection;
@@ -44,8 +44,8 @@ pub fn simulator_loop(vehicle_state:Arc<RwLock<VehicleState>> , conn:Arc<Box<Uor
     let mut last_fast_cadence_send: u64 = 0; //400Hz sensors
     loop {
         // TODO modfy this when we decouple from realtime clock
-        thread::yield_now();
-        //thread::sleep(Duration::from_micros(50));
+        //thread::yield_now();
+        thread::sleep(Duration::from_micros(100));
         let mut msg_list: Vec<(UorbHeader, UorbMessage)> = vec![];
         {
             let mut state_w = vehicle_state.write().unwrap();

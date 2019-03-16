@@ -13,6 +13,7 @@ fn main() {
     println!("starting");
 
     let selector = "tcpout:127.0.0.1:4560";
+    //let selector = "tcpout:rock64-04.local:4560";
     let conn = connection::select_protocol(selector);
     if !conn.is_ok() {
         println!("Couldn't connect...terminating");
