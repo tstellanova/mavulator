@@ -1,11 +1,9 @@
 
 use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::{Duration};
 
 use mavulator::*;
 
-use uorb_codec::common::*;
 use connection::UorbConnection;
 
 use flighty::simulato::Simulato;
@@ -32,43 +30,12 @@ fn main() {
         let conn:Arc<Box<UorbConnection+Send+Sync>> = vehicle_conn.clone();
         let simulato_state = shared_simulato.clone();
         move || {
-            reporting_loop(simulato_state, conn);
+            sim_reporter::reporting_loop(simulato_state, conn);
         }
     });
 
     // loop receiving messages from the mav firmware itself
-    loop {
-        match vehicle_conn.recv() {
-            Ok((header, msg)) => {
-                match msg {
-                    UorbMessage::ActuatorOutputs(m) => {
-                        let controls = normalize_actuator_outputs(&m.output, 4);
-                        let mut state_w = shared_simulato.write().unwrap();
-                        //println!("msg time: {}", header.timestamp);
-                        state_w.update(header.timestamp, &controls);
-                    },
-                    UorbMessage::VehicleStatus(_m) => {
-                        //TODO provide to simulato?
-                    },
-                    _ => {
-                        println!("recv: {:?}", msg);
-                    }
-                }
-            },
-            Err(e) => {
-                match e.kind() {
-                    std::io::ErrorKind::WouldBlock => {
-                        //no messages currently available to receive -- wait a while
-                        thread::sleep(Duration::from_secs(1));
-                        continue;
-                    },
-                    _ => {
-                        println!("recv error: {:?}", e);
-                        break;
-                    }
-                }
-            }
-        }
-    }
+    sim_feedback::feedback_loop(shared_simulato, vehicle_conn);
+
 }
 
