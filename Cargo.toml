@@ -4,17 +4,11 @@ version = "0.1.0"
 authors = ["tstellanova <tstellanova@users.noreply.github.com>"]
 edition = "2018"
 
-[dependencies]
-rand = "0.6.5"
-
 
 [dependencies.uorb-codec]
 #git = "https://github.com/tstellanova/uorb-codec.git"
 path = "../uorb-codec"
 
-[dependencies.sensulator]
-#git = "https://github.com/tstellanova/sensulator.git"
-path = "../sensulator"
 
 [dependencies.flighty]
 #git = "https://github.com/tstellanova/flighty.git"
