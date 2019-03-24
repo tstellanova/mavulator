@@ -15,3 +15,7 @@ path = "../uorb-codec"
 [dependencies.sensulator]
 #git = "https://github.com/tstellanova/sensulator.git"
 path = "../sensulator"
+
+[dependencies.flighty]
+#git = "https://github.com/tstellanova/flighty.git"
+path = "../flighty"

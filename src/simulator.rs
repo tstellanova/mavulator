@@ -441,7 +441,7 @@ pub fn gen_fast_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, Uo
 /// Mag rate should be 100 Hz
 /// Baro rate should be 100 Hz
 /// Airspeed should be 100 Hz
-pub fn gen_med_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
+pub fn collect_med_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
     let mut msg_list = vec![];
     msg_list.push( gen_wrapped_sensor_mag(state) );
     msg_list.push( gen_wrapped_sensor_baro(state) );
@@ -451,7 +451,7 @@ pub fn gen_med_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, Uor
 
 /// Gps rate should be about 1 Hz
 /// Battery status rate should be about 1 Hz
-pub fn gen_slow_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
+pub fn collect_slow_cadence_sensors(state: &mut VehicleState) -> Vec<(UorbHeader, UorbMessage)> {
     let mut msg_list = vec![];
     msg_list.push(gen_wrapped_gps_position_msg(state));
     msg_list.push(gen_wrapped_battery_status(state));

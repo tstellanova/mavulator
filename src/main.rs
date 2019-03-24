@@ -7,7 +7,9 @@ use mavulator::*;
 
 use uorb_codec::common::*;
 use connection::UorbConnection;
-use crate::simulator::VehicleState;
+//use crate::simulator::VehicleState;
+
+use flighty::simulato::Simulato;
 
 fn main() {
     println!("starting");
@@ -24,14 +26,22 @@ fn main() {
     println!("connected");
 
     //don't create the shared state object until after we've connected
-    let shared_vehicle_state = Arc::new(RwLock::new(simulator::initial_vehicle_state()));
+    let mut simulato = Simulato::new();
+    let shared_simulato = Arc::new(RwLock::new(simulato));
+
+    //don't create the shared state object until after we've connected
+    //let shared_vehicle_state = Arc::new(RwLock::new(simulator::initial_vehicle_state()));
 
     thread::spawn({
         let conn:Arc<Box<UorbConnection+Send+Sync>> = vehicle_conn.clone();
-        let vehicle_state:Arc<RwLock<VehicleState>> = shared_vehicle_state.clone();
+        let simulato_state = shared_simulato.clone();
         move || {
-            simulator_loop(vehicle_state, conn);
+            simulato_loop(simulato_state, conn);
         }
+//        let vehicle_state:Arc<RwLock<VehicleState>> = shared_vehicle_state.clone();
+//        move || {
+//            simulator_loop(simulato_state, conn);
+//        }
     });
 
     loop {
@@ -39,9 +49,11 @@ fn main() {
             Ok((_header, msg)) => {
                 match msg {
                     UorbMessage::ActuatorOutputs(_m) => {
+                        //TODO provide actuator to simulato
                         //println!("time: {}", m.timestamp);
                     },
                     UorbMessage::VehicleStatus(_m) => {
+                        //TODO provide actuator to simulato?
                         //println!("time: {}", m.timestamp);
                     },
                     _ => {
