@@ -23,7 +23,6 @@ pub fn increment_simulated_time(state: &mut Simulato) {
 }
 
 
-
 pub fn gen_wrapped_battery_status(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_battery_status_data(state);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
@@ -56,7 +55,6 @@ pub fn gen_battery_status_data(state: &Simulato) -> BatteryStatusData {
         warning: BatteryStatusData::BATTERY_WARNING_NONE,
     }
 }
-
 
 pub fn gen_wrapped_gps_position_msg(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_gps_msg_data(state);
@@ -194,7 +192,6 @@ pub fn gen_wrapped_sensor_mag(state: &Simulato) -> (UorbHeader, UorbMessage) {
 }
 
 
-//const MAG_REBASE_FACTOR : f32 = 112657.0/0.0015089384;
 const MAG_REBASE_FACTOR : f32 = 8220444.151;
 
 pub fn gen_sensor_mag_data(state: &Simulato, device_id: u32) -> SensorMagData {

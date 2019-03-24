@@ -7,7 +7,6 @@ use mavulator::*;
 
 use uorb_codec::common::*;
 use connection::UorbConnection;
-//use crate::simulator::VehicleState;
 
 use flighty::simulato::Simulato;
 
@@ -28,19 +27,12 @@ fn main() {
     //don't create the shared state object until after we've connected
     let shared_simulato:Arc<RwLock<Simulato>> = Arc::new(RwLock::new(Simulato::new()));
 
-    //don't create the shared state object until after we've connected
-    //let shared_vehicle_state = Arc::new(RwLock::new(simulator::initial_vehicle_state()));
-
     thread::spawn({
         let conn:Arc<Box<UorbConnection+Send+Sync>> = vehicle_conn.clone();
         let simulato_state = shared_simulato.clone();
         move || {
-            simulato_loop(simulato_state, conn);
+            reporting_loop(simulato_state, conn);
         }
-//        let vehicle_state:Arc<RwLock<VehicleState>> = shared_vehicle_state.clone();
-//        move || {
-//            simulator_loop(simulato_state, conn);
-//        }
     });
 
     loop {
