@@ -12,16 +12,6 @@ use flighty::physical_types::*;
 pub const WHOLE_DEGREE_MULT: LatLonUnits = 1E7;
 
 
-pub fn micros_from_duration(duration: &Duration) -> u64 {
-    (duration.as_secs() * 1000000) + (duration.subsec_micros() as u64)
-}
-
-pub fn increment_simulated_time(state: &mut Simulato) {
-    //TODO allow simulated time to decouple from real time
-    let new_real_time = state.elapsed();
-    state.set_simulated_time(micros_from_duration(&new_real_time));
-}
-
 
 pub fn gen_wrapped_battery_status(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_battery_status_data(state);
@@ -284,9 +274,6 @@ pub fn collect_fast_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMe
         msg_list.push(gen_wrapped_sensor_accel0(state));
         msg_list.push( gen_wrapped_sensor_accel1(state) );
     }
-//    if state.elapsed() < DURA_UNTIL_ACCEL1_FAILURE {
-//        msg_list.push( gen_wrapped_sensor_accel1(state) );
-//    }
 
     msg_list.push( gen_wrapped_sensor_gyro0(state) );
     msg_list.push( gen_wrapped_sensor_gyro1(state) );

@@ -27,6 +27,7 @@ fn main() {
     //don't create the shared state object until after we've connected
     let shared_simulato:Arc<RwLock<Simulato>> = Arc::new(RwLock::new(Simulato::new()));
 
+    // start a thread reporting the physical state of the simulated vehicle
     thread::spawn({
         let conn:Arc<Box<UorbConnection+Send+Sync>> = vehicle_conn.clone();
         let simulato_state = shared_simulato.clone();
@@ -35,18 +36,18 @@ fn main() {
         }
     });
 
+    // loop receiving messages from the mav firmware itself
     loop {
         match vehicle_conn.recv() {
-            Ok((_header, msg)) => {
+            Ok((header, msg)) => {
                 match msg {
                     UorbMessage::ActuatorOutputs(m) => {
                         let mut state_w = shared_simulato.write().unwrap();
-                        let time = state_w.get_simulated_time(); //TODO right timestamp?
-                        state_w.update(time, &m.output);
+                        //println!("msg time: {}", header.timestamp);
+                        state_w.update(header.timestamp, &m.output);
                     },
                     UorbMessage::VehicleStatus(_m) => {
-                        //TODO provide actuator to simulato?
-                        //println!("time: {}", m.timestamp);
+                        //TODO provide to simulato?
                     },
                     _ => {
                         println!("recv: {:?}", msg);
@@ -61,7 +62,7 @@ fn main() {
                         continue;
                     },
                     _ => {
-                        println ! ("recv error: {:?}", e);
+                        println!("recv error: {:?}", e);
                         break;
                     }
                 }

@@ -6,7 +6,7 @@ use std::time::{Duration};
 use uorb_codec::{UorbHeader, UorbMessage};
 
 pub mod connection;
-pub mod sim_wrapper;
+pub mod sim_reporter;
 
 use connection::UorbConnection;
 use flighty::simulato::Simulato;
@@ -25,8 +25,8 @@ use flighty::simulato::Simulato;
 pub fn reporting_loop(sim:Arc<RwLock<Simulato>>, conn:Arc<Box<UorbConnection+Send+Sync>>) {
     {
         //send a first message to establish a time base (abs time offset)
-        let mut state_w = sim.write().unwrap();
-        let (hdr, msg) = sim_wrapper::gen_wrapped_timesync_status(&mut state_w);
+        let state_r = sim.read().unwrap();
+        let (hdr, msg) = sim_reporter::gen_wrapped_timesync_status(&state_r);
         let first_msg = vec![(hdr, msg)];
         let res = send_all_messages(&**conn, first_msg);
         if res.is_err() {
@@ -43,31 +43,35 @@ pub fn reporting_loop(sim:Arc<RwLock<Simulato>>, conn:Arc<Box<UorbConnection+Sen
         thread::sleep(Duration::from_micros(100));
         let mut msg_list: Vec<(UorbHeader, UorbMessage)> = vec![];
         {
-            let mut state_w = sim.write().unwrap();
-            sim_wrapper::increment_simulated_time(&mut state_w);
+            {
+                //clock is driven by the simulator
+                let mut state_w = sim.write().unwrap();
+                state_w.increment_simulated_time();
+            }
 
+            let state_r = sim.read().unwrap();
             //Fast cadence: 400Hz approx
             if (0 ==  last_fast_cadence_send) ||
-                (state_w.elapsed_since(last_fast_cadence_send) > 2500) {
-                let msgs = sim_wrapper::collect_fast_cadence_sensors(&mut state_w);
+                (state_r.elapsed_since(last_fast_cadence_send) > 2500) {
+                let msgs = sim_reporter::collect_fast_cadence_sensors(&state_r);
                 msg_list.extend(msgs);
-                last_fast_cadence_send = state_w.get_simulated_time();
+                last_fast_cadence_send = state_r.get_simulated_time();
             }
 
             // Medium cadence: about 100Hz  10000 usec
             if (0 ==  last_med_cadence_send) ||
-                (state_w.elapsed_since(last_med_cadence_send) > 10000) {
-                let msgs = sim_wrapper::collect_med_cadence_sensors(&mut state_w);
+                (state_r.elapsed_since(last_med_cadence_send) > 10000) {
+                let msgs = sim_reporter::collect_med_cadence_sensors(&state_r);
                 msg_list.extend(msgs);
-                last_med_cadence_send = state_w.get_simulated_time();
+                last_med_cadence_send = state_r.get_simulated_time();
             }
 
             //Slow cadence: 1Hz approx
             if (0 ==  last_slow_cadence_send) ||
-                (state_w.elapsed_since(last_slow_cadence_send) > 100000) {
-                let msgs = sim_wrapper::collect_slow_cadence_sensors(&mut state_w);
+                (state_r.elapsed_since(last_slow_cadence_send) > 100000) {
+                let msgs = sim_reporter::collect_slow_cadence_sensors(&state_r);
                 msg_list.extend(msgs);
-                last_slow_cadence_send = state_w.get_simulated_time();
+                last_slow_cadence_send = state_r.get_simulated_time();
             }
         }
 
