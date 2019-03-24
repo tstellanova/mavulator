@@ -22,6 +22,8 @@ pub fn increment_simulated_time(state: &mut Simulato) {
     state.set_simulated_time(micros_from_duration(&new_real_time));
 }
 
+
+
 pub fn gen_wrapped_battery_status(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_battery_status_data(state);
     msg_data.gen_ready_pair(0, state.get_simulated_time())

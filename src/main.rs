@@ -26,8 +26,7 @@ fn main() {
     println!("connected");
 
     //don't create the shared state object until after we've connected
-    let mut simulato = Simulato::new();
-    let shared_simulato = Arc::new(RwLock::new(simulato));
+    let shared_simulato:Arc<RwLock<Simulato>> = Arc::new(RwLock::new(Simulato::new()));
 
     //don't create the shared state object until after we've connected
     //let shared_vehicle_state = Arc::new(RwLock::new(simulator::initial_vehicle_state()));
@@ -48,9 +47,10 @@ fn main() {
         match vehicle_conn.recv() {
             Ok((_header, msg)) => {
                 match msg {
-                    UorbMessage::ActuatorOutputs(_m) => {
-                        //TODO provide actuator to simulato
-                        //println!("time: {}", m.timestamp);
+                    UorbMessage::ActuatorOutputs(m) => {
+                        let mut state_w = shared_simulato.write().unwrap();
+                        let time = state_w.get_simulated_time(); //TODO right timestamp?
+                        state_w.update(time, &m.output);
                     },
                     UorbMessage::VehicleStatus(_m) => {
                         //TODO provide actuator to simulato?
