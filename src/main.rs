@@ -42,9 +42,10 @@ fn main() {
             Ok((header, msg)) => {
                 match msg {
                     UorbMessage::ActuatorOutputs(m) => {
+                        let controls = normalize_actuator_outputs(&m.output, 4);
                         let mut state_w = shared_simulato.write().unwrap();
                         //println!("msg time: {}", header.timestamp);
-                        state_w.update(header.timestamp, &m.output);
+                        state_w.update(header.timestamp, &controls);
                     },
                     UorbMessage::VehicleStatus(_m) => {
                         //TODO provide to simulato?
