@@ -6,7 +6,6 @@ use std::time::{Duration};
 use flighty::models::ActuatorControls;
 use flighty::simulato::Simulato;
 
-//use uorb_codec::common::ActuatorOutputsData;
 use uorb_codec::common::*;
 
 use crate::connection::UorbConnection;

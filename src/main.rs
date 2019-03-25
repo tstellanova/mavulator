@@ -23,19 +23,20 @@ fn main() {
     println!("connected");
 
     //don't create the shared state object until after we've connected
-    let shared_simulato:Arc<RwLock<Simulato>> = Arc::new(RwLock::new(Simulato::new()));
+    let shared_sim:Arc<RwLock<Simulato>> = Arc::new(RwLock::new(Simulato::new()));
 
-    // start a thread reporting the physical state of the simulated vehicle
+    // start a thread reporting the vehicle's simulated physical state back to the mav firmware
     thread::spawn({
         let conn:Arc<Box<UorbConnection+Send+Sync>> = vehicle_conn.clone();
-        let simulato_state = shared_simulato.clone();
+        let sim = shared_sim.clone();
         move || {
-            sim_reporter::reporting_loop(simulato_state, conn);
+            mav_writer::reporting_loop(sim, conn);
         }
     });
 
-    // loop receiving messages from the mav firmware itself
-    sim_feedback::feedback_loop(shared_simulato, vehicle_conn);
+    // this thread loops forever receiving state messages from the mav firmware and
+    // forwarding to the physical simulator
+    mav_reader::feedback_loop(shared_sim, vehicle_conn);
 
 }
 
