@@ -211,7 +211,7 @@ pub fn gen_sensor_gyro_data(state: &Simulato, device_id: u32) -> SensorGyroData 
         x_integral: 0.0, //6.511943e-06,
         y_integral: 0.0, //9.221726e-06,
         z_integral: 0.0, //2.8863593e-05,
-        temperature: state.sensed.temperature,
+        temperature: state.vehicle_state.base_temperature,
         scaling: 1.1920929e-07,
         x_raw: (xgyro * GYRO_REBASE_FACTOR) as i16,
         y_raw: (ygyro * GYRO_REBASE_FACTOR) as i16,
@@ -253,7 +253,7 @@ pub fn gen_sensor_accel_data(state: &Simulato, device_id: u32) -> SensorAccelDat
         x_integral: 0.0, //3.46E-05,
         y_integral: 0.0, //1.85E-05,
         z_integral: 0.0, //3.92E-02,
-        temperature: state.sensed.temperature,
+        temperature: state.vehicle_state.base_temperature,
         scaling: 1.19E-07,
         x_raw: 32767, //(xacc / ACCEL_REBASE_FACTOR) as i16,
         y_raw: 32767, //(yacc / ACCEL_REBASE_FACTOR) as i16,
@@ -285,7 +285,7 @@ pub fn gen_sensor_mag_data(state: &Simulato, device_id: u32) -> SensorMagData {
         x: xmag,
         y: ymag,
         z: zmag,
-        temperature: state.sensed.temperature,
+        temperature: state.vehicle_state.base_temperature,
         scaling: 0.0,
         x_raw: (xmag * MAG_REBASE_FACTOR) as i16,
         y_raw: (ymag * MAG_REBASE_FACTOR) as i16,
@@ -304,11 +304,10 @@ pub fn gen_wrapped_sensor_baro(state: &Simulato) -> (UorbHeader, UorbMessage) {
 pub fn gen_sensor_baro_data(state: &Simulato, device_id: u32) -> SensorBaroData {
     SensorBaroData {
         timestamp: state.get_simulated_time(),
-        device_id: device_id,
+        device_id,
         error_count: 0,
-        pressure: 0.0, //TODO
-        //altitude_to_baro_pressure(state.alt.measure()),
-        temperature: state.sensed.temperature,
+        pressure: state.sensed.baro.peek() ,
+        temperature: state.vehicle_state.base_temperature,
     }
 }
 
@@ -329,7 +328,7 @@ pub fn gen_differential_pressure_data(state: &Simulato, device_id: u32) -> Diffe
         error_count: 0,
         differential_pressure_raw_pa:speed_pressure,
         differential_pressure_filtered_pa: speed_pressure,
-        temperature: state.sensed.temperature,
+        temperature: state.vehicle_state.base_temperature,
     }
 }
 
