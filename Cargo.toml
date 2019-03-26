@@ -13,3 +13,10 @@ path = "../uorb-codec"
 [dependencies.flighty]
 #git = "https://github.com/tstellanova/flighty.git"
 path = "../flighty"
+
+[dev-dependencies]
+bencher = "0.1.5"
+
+[[bench]]
+name = "perf"
+harness = false

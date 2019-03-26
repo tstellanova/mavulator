@@ -19,6 +19,52 @@ pub const WHOLE_DEGREE_MULT: LatLonUnits = 1E7;
 
 
 
+//TODO collect_messages shouldn't really be pub , but is required for benchmarking?
+pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
+                    last_slow_cadence_send: &mut TimeBaseUnits,
+                    last_med_cadence_send: &mut TimeBaseUnits,
+                    last_fast_cadence_send: &mut TimeBaseUnits
+
+) -> Vec<(UorbHeader, UorbMessage)> {
+
+    let mut msg_list: Vec<(UorbHeader, UorbMessage)> = vec![];
+    {
+        let time_check: TimeBaseUnits;
+        {
+            //clock is driven by the physical simulator
+            let mut state_w = sim.write().unwrap();
+            state_w.increment_simulated_time();
+            time_check = state_w.get_simulated_time();
+        }
+
+        let state_r = sim.read().unwrap();
+        //Fast cadence: 400Hz approx
+        if (0 ==  *last_fast_cadence_send) ||
+            (state_r.elapsed_since(*last_fast_cadence_send) > 2500) {
+            let msgs = collect_fast_cadence_sensors(&state_r);
+            msg_list.extend(msgs);
+            *last_fast_cadence_send = time_check;
+        }
+
+        // Medium cadence: about 100Hz  10000 usec
+        if (0 ==  *last_med_cadence_send) ||
+            (state_r.elapsed_since(*last_med_cadence_send) > 10000) {
+            let msgs = collect_med_cadence_sensors(&state_r);
+            msg_list.extend(msgs);
+            *last_med_cadence_send = time_check;
+        }
+
+        //Slow cadence: 1Hz approx
+        if (0 ==  *last_slow_cadence_send) ||
+            (state_r.elapsed_since(*last_slow_cadence_send) > 100000) {
+            let msgs = collect_slow_cadence_sensors(&state_r);
+            msg_list.extend(msgs);
+            *last_slow_cadence_send = time_check;
+        }
+    }
+    msg_list
+}
+
 /// Report sensor data from the vehicle
 ///
 /// - Gyro rate should be 400 Hz
@@ -40,46 +86,17 @@ pub fn reporting_loop(sim:Arc<RwLock<Simulato>>, conn:Arc<Box<UorbConnection+Sen
         }
     }
 
-    let mut last_slow_cadence_send: u64 = 0; //1Hz sensors
-    let mut last_med_cadence_send: u64 = 0; //100Hz sensors
-    let mut last_fast_cadence_send: u64 = 0; //400Hz sensors
+    let mut last_slow_cadence_send:TimeBaseUnits = 0; //1Hz sensors
+    let mut last_med_cadence_send:TimeBaseUnits = 0; //100Hz sensors
+    let mut last_fast_cadence_send:TimeBaseUnits = 0; //400Hz sensors
+
     loop {
-        // TODO modfy this when we decouple from realtime clock
         thread::sleep(Duration::from_micros(100));
-        let mut msg_list: Vec<(UorbHeader, UorbMessage)> = vec![];
-        {
-            {
-                //clock is driven by the physical simulator
-                let mut state_w = sim.write().unwrap();
-                state_w.increment_simulated_time();
-            }
-
-            let state_r = sim.read().unwrap();
-            //Fast cadence: 400Hz approx
-            if (0 ==  last_fast_cadence_send) ||
-                (state_r.elapsed_since(last_fast_cadence_send) > 2500) {
-                let msgs = collect_fast_cadence_sensors(&state_r);
-                msg_list.extend(msgs);
-                last_fast_cadence_send = state_r.get_simulated_time();
-            }
-
-            // Medium cadence: about 100Hz  10000 usec
-            if (0 ==  last_med_cadence_send) ||
-                (state_r.elapsed_since(last_med_cadence_send) > 10000) {
-                let msgs = collect_med_cadence_sensors(&state_r);
-                msg_list.extend(msgs);
-                last_med_cadence_send = state_r.get_simulated_time();
-            }
-
-            //Slow cadence: 1Hz approx
-            if (0 ==  last_slow_cadence_send) ||
-                (state_r.elapsed_since(last_slow_cadence_send) > 100000) {
-                let msgs = collect_slow_cadence_sensors(&state_r);
-                msg_list.extend(msgs);
-                last_slow_cadence_send = state_r.get_simulated_time();
-            }
-        }
-
+        let msg_list = collect_messages(&sim,
+            &mut last_slow_cadence_send,
+            &mut last_med_cadence_send,
+            &mut last_fast_cadence_send
+        );
         if msg_list.len() > 0 {
             //send all messages
             let res = send_all_messages(&**conn, msg_list);
@@ -88,7 +105,6 @@ pub fn reporting_loop(sim:Arc<RwLock<Simulato>>, conn:Arc<Box<UorbConnection+Sen
                 return;
             }
         }
-
     }
 }
 
@@ -101,12 +117,12 @@ fn send_all_messages( conn: &UorbConnection,  msg_list: Vec<(UorbHeader, UorbMes
 }
 
 
-pub fn gen_wrapped_battery_status(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_battery_status(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_battery_status_data(state);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
 
-pub fn gen_battery_status_data(state: &Simulato) -> BatteryStatusData {
+fn gen_battery_status_data(state: &Simulato) -> BatteryStatusData {
     BatteryStatusData {
         timestamp: state.get_simulated_time(),
         voltage_v: 16.0,
@@ -134,12 +150,12 @@ pub fn gen_battery_status_data(state: &Simulato) -> BatteryStatusData {
     }
 }
 
-pub fn gen_wrapped_gps_position_msg(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_gps_position_msg(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_gps_msg_data(state);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
 
-pub fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
+fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
     //TODO ensure we use the same altitude that baro has already generated
     let pos = state.sensed.gps.get_val();
     let alt_mm = (pos.alt * 1E3) as i32;
@@ -183,18 +199,18 @@ pub fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
 const SIM_GYRO0_DEVICE_ID: u32 = 2293768;
 const SIM_GYRO1_DEVICE_ID: u32 = 3141593;
 
-pub fn gen_wrapped_sensor_gyro0(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_sensor_gyro0(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_gyro_data(state, SIM_GYRO0_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
-pub fn gen_wrapped_sensor_gyro1(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_sensor_gyro1(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_gyro_data(state, SIM_GYRO1_DEVICE_ID);
     msg_data.gen_ready_pair(1, state.get_simulated_time())
 }
 
 const GYRO_REBASE_FACTOR:f32 =  8388463.696;
 
-pub fn gen_sensor_gyro_data(state: &Simulato, device_id: u32) -> SensorGyroData {
+fn gen_sensor_gyro_data(state: &Simulato, device_id: u32) -> SensorGyroData {
     let gyro_bucket = state.sensed.gyro.get_val();
     let xgyro = gyro_bucket[0];
     let ygyro = gyro_bucket[1];
@@ -224,19 +240,19 @@ pub fn gen_sensor_gyro_data(state: &Simulato, device_id: u32) -> SensorGyroData 
 const SIM_ACCEL0_DEVICE_ID:u32 = 1376264;
 const SIM_ACCEL1_DEVICE_ID:u32 = 1310728;
 
-pub fn gen_wrapped_sensor_accel0(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_sensor_accel0(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_accel_data(state, SIM_ACCEL0_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
 
-pub fn gen_wrapped_sensor_accel1(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_sensor_accel1(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_accel_data(state, SIM_ACCEL1_DEVICE_ID);
     msg_data.gen_ready_pair(1, state.get_simulated_time())
 }
 
 //const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
 
-pub fn gen_sensor_accel_data(state: &Simulato, device_id: u32) -> SensorAccelData {
+fn gen_sensor_accel_data(state: &Simulato, device_id: u32) -> SensorAccelData {
     let accel_bucket = state.sensed.accel.get_val();
     let xacc = accel_bucket[0];
     let yacc = accel_bucket[1];
@@ -264,7 +280,7 @@ pub fn gen_sensor_accel_data(state: &Simulato, device_id: u32) -> SensorAccelDat
 
 const SIM_MAG_DEVCE_ID: u32 = 196616;
 
-pub fn gen_wrapped_sensor_mag(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_sensor_mag(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_mag_data(state, SIM_MAG_DEVCE_ID);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
@@ -272,7 +288,7 @@ pub fn gen_wrapped_sensor_mag(state: &Simulato) -> (UorbHeader, UorbMessage) {
 
 const MAG_REBASE_FACTOR : f32 = 8220444.151;
 
-pub fn gen_sensor_mag_data(state: &Simulato, device_id: u32) -> SensorMagData {
+fn gen_sensor_mag_data(state: &Simulato, device_id: u32) -> SensorMagData {
     let mag_bucket = state.sensed.mag.get_val();
     let xmag = mag_bucket[0];
     let ymag = mag_bucket[1];
@@ -296,17 +312,17 @@ pub fn gen_sensor_mag_data(state: &Simulato, device_id: u32) -> SensorMagData {
 
 const SIM_BARO_DEVICE_ID: u32 = 478459;
 
-pub fn gen_wrapped_sensor_baro(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_sensor_baro(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_baro_data(state, SIM_BARO_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
 
-pub fn gen_sensor_baro_data(state: &Simulato, device_id: u32) -> SensorBaroData {
+fn gen_sensor_baro_data(state: &Simulato, device_id: u32) -> SensorBaroData {
     SensorBaroData {
         timestamp: state.get_simulated_time(),
         device_id,
         error_count: 0,
-        pressure: state.sensed.baro.peek() ,
+        pressure: state.sensed.baro.get_val() ,
         temperature: state.vehicle_state.base_temperature,
     }
 }
@@ -314,13 +330,13 @@ pub fn gen_sensor_baro_data(state: &Simulato, device_id: u32) -> SensorBaroData 
 
 const SIM_DIFF_PRESS_DEVICE_ID: u32 = 0;
 
-pub fn gen_wrapped_differential_pressure(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_differential_pressure(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_differential_pressure_data(state, SIM_DIFF_PRESS_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
 
-pub fn gen_differential_pressure_data(state: &Simulato, device_id: u32) -> DifferentialPressureData {
-    let speed_pressure: f32 = state.sensed.airspeed.peek();
+fn gen_differential_pressure_data(state: &Simulato, device_id: u32) -> DifferentialPressureData {
+    let speed_pressure: f32 = state.sensed.airspeed.get_val();
 
     DifferentialPressureData {
         timestamp: state.get_simulated_time(),
@@ -334,12 +350,12 @@ pub fn gen_differential_pressure_data(state: &Simulato, device_id: u32) -> Diffe
 
 
 /// We use timsync_status to set the initial px4_timestart_monotonic
-pub fn gen_wrapped_timesync_status(state: &Simulato) -> (UorbHeader, UorbMessage) {
+fn gen_wrapped_timesync_status(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_timesync_status_data(state);
     msg_data.gen_ready_pair(0, state.abstime_offset)
 }
 
-pub fn gen_timesync_status_data(state: &Simulato) -> TimesyncStatusData {
+fn gen_timesync_status_data(state: &Simulato) -> TimesyncStatusData {
     TimesyncStatusData {
         timestamp: state.abstime_offset,
         remote_timestamp: state.abstime_offset,
@@ -354,7 +370,7 @@ const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(60);
 
 /// Gyro rate should be 400 Hz
 /// Accel rate should be 400 Hz
-pub fn collect_fast_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage)> {
+fn collect_fast_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage)> {
 
     let mut msg_list = vec![];
     if state.elapsed() < DURA_UNTIL_ACCEL0_FAILURE {
@@ -371,7 +387,7 @@ pub fn collect_fast_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMe
 /// Mag rate should be 100 Hz
 /// Baro rate should be 100 Hz
 /// Airspeed should be 100 Hz
-pub fn collect_med_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage)> {
+fn collect_med_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage)> {
     let mut msg_list = vec![];
     msg_list.push( gen_wrapped_sensor_mag(state) );
     msg_list.push( gen_wrapped_sensor_baro(state) );
@@ -381,7 +397,7 @@ pub fn collect_med_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMes
 
 /// Gps rate should be about 1 Hz
 /// Battery status rate should be about 1 Hz
-pub fn collect_slow_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage)> {
+fn collect_slow_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage)> {
     let mut msg_list = vec![];
     msg_list.push(gen_wrapped_gps_position_msg(state));
     msg_list.push(gen_wrapped_battery_status(state));
