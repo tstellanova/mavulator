@@ -2,9 +2,9 @@
 use std::f32::NAN;
 
 use std::sync::{Arc, RwLock};
-use std::time::{Duration};
 use std::thread;
 use std::io::Error;
+use std::time::{Duration, SystemTime};
 
 use uorb_codec::common::*;
 use uorb_codec::{self, UorbHeader, UorbMessage, UorbMsgMeta};
@@ -99,11 +99,14 @@ pub fn reporting_loop(sim:Arc<RwLock<Simulato>>, conn:Arc<Box<UorbConnection+Sen
         );
         if msg_list.len() > 0 {
             //send all messages
+            //let start = SystemTime::now();
             let res = send_all_messages(&**conn, msg_list);
             if res.is_err() {
                 println!("sending failed: {:?}", res);
                 return;
             }
+            //let elapsed = start.elapsed().unwrap();
+            //println!("send_all_messages time: {:?}", elapsed);
         }
     }
 }
@@ -365,7 +368,7 @@ fn gen_timesync_status_data(state: &Simulato) -> TimesyncStatusData {
     }
 }
 
-const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(60);
+const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(300);
 //const DURA_UNTIL_ACCEL1_FAILURE:Duration = Duration::from_secs(120);
 
 /// Gyro rate should be 400 Hz
@@ -380,6 +383,19 @@ fn collect_fast_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessag
 
     msg_list.push( gen_wrapped_sensor_gyro0(state) );
     msg_list.push( gen_wrapped_sensor_gyro1(state) );
+
+//    let gyrobes = state.sensed.gyro.get_val();
+//    let accelbes = state.sensed.accel.get_val();
+//
+//    println!("{} {} {}  {} {} {}",
+//        gyrobes[0],
+//        gyrobes[1],
+//        gyrobes[2],
+//        accelbes[0],
+//        accelbes[1],
+//        accelbes[2]);
+
+
     msg_list
 }
 
