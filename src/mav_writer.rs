@@ -4,7 +4,7 @@ use std::f32::NAN;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::io::Error;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration};
 
 use uorb_codec::common::*;
 use uorb_codec::{self, UorbHeader, UorbMessage, UorbMsgMeta};
@@ -38,6 +38,9 @@ pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
         }
 
         let state_r = sim.read().unwrap();
+        let accels = state_r.vehicle_state.kinematic.inertial_accel;
+        println!("time {} accel_z {}  ", time_check, accels[2] );
+
         //Fast cadence: 400Hz approx
         if (0 ==  *last_fast_cadence_send) ||
             (state_r.elapsed_since(*last_fast_cadence_send) > 2500) {
@@ -161,7 +164,7 @@ fn gen_wrapped_gps_position_msg(state: &Simulato) -> (UorbHeader, UorbMessage) {
 fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
     //TODO ensure we use the same altitude that baro has already generated
     let pos = state.sensed.gps.get_val();
-    let alt_mm = (pos.alt * 1E3) as i32;
+    let alt_mm = (pos.alt_wgs84 * 1E3) as i32;
 
     VehicleGpsPositionData {
         timestamp: state.get_simulated_time(),
@@ -169,8 +172,8 @@ fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
 
         lat: (pos.lat * WHOLE_DEGREE_MULT) as i32,
         lon: (pos.lon * WHOLE_DEGREE_MULT) as i32,
-        alt: alt_mm,
-        alt_ellipsoid: 0,
+        alt: alt_mm, //TODO not strictly accurate-- AMSL not the same as above-ellipsoid
+        alt_ellipsoid: alt_mm, //accurate
 
         s_variance_m_s: 0.0,
         c_variance_rad: 0.0,
