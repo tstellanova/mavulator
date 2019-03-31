@@ -18,7 +18,6 @@ use flighty::physical_types::*;
 pub const WHOLE_DEGREE_MULT: LatLonUnits = 1E7;
 
 
-
 //TODO collect_messages shouldn't really be pub , but is required for benchmarking?
 pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
                     last_slow_cadence_send: &mut TimeBaseUnits,
@@ -38,8 +37,8 @@ pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
         }
 
         let state_r = sim.read().unwrap();
-        let accels = state_r.vehicle_state.kinematic.inertial_accel;
-        println!("time {} accel_z {}  ", time_check, accels[2] );
+        //let sensed_z = state_r.sensed.accel.get_val()[2];
+        //println!("time {}  sensed accel_z {}", time_check, sensed_z );
 
         //Fast cadence: 400Hz approx
         if (0 ==  *last_fast_cadence_send) ||
@@ -163,8 +162,12 @@ fn gen_wrapped_gps_position_msg(state: &Simulato) -> (UorbHeader, UorbMessage) {
 
 fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
     //TODO ensure we use the same altitude that baro has already generated
-    let pos = state.sensed.gps.get_val();
+    let pos = state.sensed.gps.get_global_pos();
+    let vel = state.sensed.gps.get_velocity();
     let alt_mm = (pos.alt_wgs84 * 1E3) as i32;
+    //println!("vel: {:?}" , vel);
+
+    let vel_ned_valid = vel[3] > 2.0;
 
     VehicleGpsPositionData {
         timestamp: state.get_simulated_time(),
@@ -186,13 +189,13 @@ fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
         noise_per_ms: 0,
         jamming_indicator: 0,
 
-        vel_m_s: 0.0,
-        vel_n_m_s: 0.0,
-        vel_e_m_s: 0.0,
-        vel_d_m_s: 0.0,
+        vel_n_m_s: if vel_ned_valid { vel[0] } else {0.0},
+        vel_e_m_s: if vel_ned_valid { vel[1] } else {0.0},
+        vel_d_m_s: if vel_ned_valid { vel[2] } else {0.0},
+        vel_m_s: if vel_ned_valid { vel[3] } else {0.0},
+        vel_ned_valid: vel_ned_valid,
 
         cog_rad: 0.0,
-        vel_ned_valid: false,
 
         timestamp_time_relative: 0,
         satellites_used: 11,
@@ -203,16 +206,16 @@ fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
 
 
 const SIM_GYRO0_DEVICE_ID: u32 = 2293768;
-const SIM_GYRO1_DEVICE_ID: u32 = 3141593;
+//const SIM_GYRO1_DEVICE_ID: u32 = 3141593;
 
 fn gen_wrapped_sensor_gyro0(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_gyro_data(state, SIM_GYRO0_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
-fn gen_wrapped_sensor_gyro1(state: &Simulato) -> (UorbHeader, UorbMessage) {
-    let msg_data = gen_sensor_gyro_data(state, SIM_GYRO1_DEVICE_ID);
-    msg_data.gen_ready_pair(1, state.get_simulated_time())
-}
+//fn gen_wrapped_sensor_gyro1(state: &Simulato) -> (UorbHeader, UorbMessage) {
+//    let msg_data = gen_sensor_gyro_data(state, SIM_GYRO1_DEVICE_ID);
+//    msg_data.gen_ready_pair(1, state.get_simulated_time())
+//}
 
 const GYRO_REBASE_FACTOR:f32 =  8388463.696;
 
@@ -244,17 +247,17 @@ fn gen_sensor_gyro_data(state: &Simulato, device_id: u32) -> SensorGyroData {
 
 
 const SIM_ACCEL0_DEVICE_ID:u32 = 1376264;
-const SIM_ACCEL1_DEVICE_ID:u32 = 1310728;
+//const SIM_ACCEL1_DEVICE_ID:u32 = 1310728;
 
 fn gen_wrapped_sensor_accel0(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_accel_data(state, SIM_ACCEL0_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
 
-fn gen_wrapped_sensor_accel1(state: &Simulato) -> (UorbHeader, UorbMessage) {
-    let msg_data = gen_sensor_accel_data(state, SIM_ACCEL1_DEVICE_ID);
-    msg_data.gen_ready_pair(1, state.get_simulated_time())
-}
+//fn gen_wrapped_sensor_accel1(state: &Simulato) -> (UorbHeader, UorbMessage) {
+//    let msg_data = gen_sensor_accel_data(state, SIM_ACCEL1_DEVICE_ID);
+//    msg_data.gen_ready_pair(1, state.get_simulated_time())
+//}
 
 //const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
 
@@ -371,7 +374,7 @@ fn gen_timesync_status_data(state: &Simulato) -> TimesyncStatusData {
     }
 }
 
-const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(300);
+//const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(300);
 //const DURA_UNTIL_ACCEL1_FAILURE:Duration = Duration::from_secs(120);
 
 /// Gyro rate should be 400 Hz
@@ -379,13 +382,13 @@ const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(300);
 fn collect_fast_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage)> {
 
     let mut msg_list = vec![];
-    if state.elapsed() < DURA_UNTIL_ACCEL0_FAILURE {
+    //if state.elapsed() < DURA_UNTIL_ACCEL0_FAILURE {
         msg_list.push(gen_wrapped_sensor_accel0(state));
-        msg_list.push( gen_wrapped_sensor_accel1(state) );
-    }
+        //msg_list.push( gen_wrapped_sensor_accel1(state) );
+    //}
 
-    msg_list.push( gen_wrapped_sensor_gyro0(state) );
-    msg_list.push( gen_wrapped_sensor_gyro1(state) );
+   msg_list.push( gen_wrapped_sensor_gyro0(state) );
+   // msg_list.push( gen_wrapped_sensor_gyro1(state) );
 
 //    let gyrobes = state.sensed.gyro.get_val();
 //    let accelbes = state.sensed.accel.get_val();
