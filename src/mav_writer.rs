@@ -14,9 +14,13 @@ use crate::connection::UorbConnection;
 use flighty::simulato::Simulato;
 use flighty::physical_types::*;
 
+/// multiplier for converting LatLonUnits into whole numbers
+const WHOLE_DEGREE_MULT: LatLonUnits = 1E7;
 
-pub const WHOLE_DEGREE_MULT: LatLonUnits = 1E7;
+/// The minimum GPS ground velocity that can be considered valid
+const GPS_HVEL_MINIMUM_VALID: SpeedUnits = 1.0;
 
+const FAST_CADENCE_MICROSECONDS: TimeBaseUnits = 2500;
 
 //TODO collect_messages shouldn't really be pub , but is required for benchmarking?
 pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
@@ -42,7 +46,7 @@ pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
 
         //Fast cadence: 400Hz approx
         if (0 ==  *last_fast_cadence_send) ||
-            (state_r.elapsed_since(*last_fast_cadence_send) > 2500) {
+            (state_r.elapsed_since(*last_fast_cadence_send) > FAST_CADENCE_MICROSECONDS) {
             let msgs = collect_fast_cadence_sensors(&state_r);
             msg_list.extend(msgs);
             *last_fast_cadence_send = time_check;
@@ -94,6 +98,7 @@ pub fn reporting_loop(sim:Arc<RwLock<Simulato>>, conn:Arc<Box<UorbConnection+Sen
 
     loop {
         thread::sleep(Duration::from_micros(100));
+        //thread::yield_now();
         let msg_list = collect_messages(&sim,
             &mut last_slow_cadence_send,
             &mut last_med_cadence_send,
@@ -165,9 +170,8 @@ fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
     let pos = state.sensed.gps.get_global_pos();
     let vel = state.sensed.gps.get_velocity();
     let alt_mm = (pos.alt_wgs84 * 1E3) as i32;
-    //println!("vel: {:?}" , vel);
 
-    let vel_ned_valid = vel[3] > 2.0;
+    let vel_ned_ground_valid = vel[3] > GPS_HVEL_MINIMUM_VALID;
 
     VehicleGpsPositionData {
         timestamp: state.get_simulated_time(),
@@ -180,7 +184,7 @@ fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
 
         s_variance_m_s: 0.0,
         c_variance_rad: 0.0,
-        fix_type: 3, //3d
+        fix_type: 3, //3D
         eph: 0.01,
         epv: 0.01,
         hdop: 0.0,
@@ -189,13 +193,14 @@ fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
         noise_per_ms: 0,
         jamming_indicator: 0,
 
-        vel_n_m_s: if vel_ned_valid { vel[0] } else {0.0},
-        vel_e_m_s: if vel_ned_valid { vel[1] } else {0.0},
-        vel_d_m_s: if vel_ned_valid { vel[2] } else {0.0},
-        vel_m_s: if vel_ned_valid { vel[3] } else {0.0},
-        vel_ned_valid: vel_ned_valid,
+        vel_n_m_s: if vel_ned_ground_valid { vel[0] } else {0.0},
+        vel_e_m_s: if vel_ned_ground_valid { vel[1] } else {0.0},
+        vel_d_m_s: vel[2],
+        vel_m_s:   if vel_ned_ground_valid { vel[3] } else {0.0},
+        vel_ned_valid: vel_ned_ground_valid,
 
-        cog_rad: 0.0,
+        //course over ground (cod) = atan2(y,x)
+        cog_rad: if vel_ned_ground_valid { vel[1].atan2(vel[0]) } else { 0.0  },
 
         timestamp_time_relative: 0,
         satellites_used: 11,
@@ -274,7 +279,7 @@ fn gen_sensor_accel_data(state: &Simulato, device_id: u32) -> SensorAccelData {
         x: xacc,
         y: yacc,
         z: zacc,
-        integral_dt: 0, //4000,
+        integral_dt: 0, //4000, //TODO maybe FAST_CADENCE_MICROSECONDS
         x_integral: 0.0, //3.46E-05,
         y_integral: 0.0, //1.85E-05,
         z_integral: 0.0, //3.92E-02,
