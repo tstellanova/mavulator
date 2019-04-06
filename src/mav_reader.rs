@@ -13,13 +13,13 @@ use crate::connection::UorbConnection;
 
 
 pub fn handle_actuator_outputs(shared_simulato:Arc<RwLock<Simulato>>,
-                               header: &UorbHeader,
+                               _header: &UorbHeader,
                                data: &ActuatorOutputsData
 ) {
     let controls = normalize_actuator_outputs(&data.output, 4);
     let mut state_w = shared_simulato.write().unwrap();
     //println!("msg time: {}", header.timestamp);
-    state_w.update(header.timestamp, &controls);
+    state_w.update( &controls);
 }
 
 ///  Default minimum PWM in microseconds
@@ -64,13 +64,13 @@ pub fn feedback_loop(shared_simulato:Arc<RwLock<Simulato>>, vehicle_conn:Arc<Box
     // loop receiving messages from the mav firmware itself
     loop {
         match vehicle_conn.recv() {
-            Ok((header, msg)) => {
+            Ok((_header, msg)) => {
                 match msg {
                     UorbMessage::ActuatorOutputs(m) => {
                         let controls = normalize_actuator_outputs(&m.output, 4);
                         let mut state_w = shared_simulato.write().unwrap();
                         //println!("msg time: {}", header.timestamp);
-                        state_w.update(header.timestamp, &controls);
+                        state_w.update(&controls);
                     },
                     UorbMessage::VehicleStatus(_m) => {
                         //TODO provide to simulato?

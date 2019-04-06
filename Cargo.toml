@@ -10,8 +10,8 @@ git = "https://github.com/tstellanova/uorb-codec.git"
 #path = "../uorb-codec"
 
 [dependencies.flighty]
-git = "https://github.com/tstellanova/flighty.git"
-#path = "../flighty"
+#git = "https://github.com/tstellanova/flighty.git"
+path = "../flighty"
 
 [dev-dependencies]
 bencher = "0.1.5"

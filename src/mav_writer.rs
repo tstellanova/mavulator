@@ -4,7 +4,7 @@ use std::f32::NAN;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::io::Error;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration};
 
 use uorb_codec::common::*;
 use uorb_codec::{self, UorbHeader, UorbMessage, UorbMsgMeta};
@@ -14,10 +14,13 @@ use crate::connection::UorbConnection;
 use flighty::simulato::Simulato;
 use flighty::physical_types::*;
 
+/// multiplier for converting LatLonUnits into whole numbers
+const WHOLE_DEGREE_MULT: LatLonUnits = 1E7;
 
-pub const WHOLE_DEGREE_MULT: LatLonUnits = 1E7;
+/// The minimum GPS ground velocity that can be considered valid
+const GPS_HVEL_MINIMUM_VALID: SpeedUnits = 1.0;
 
-
+const FAST_CADENCE_MICROSECONDS: TimeBaseUnits = 2500;
 
 //TODO collect_messages shouldn't really be pub , but is required for benchmarking?
 pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
@@ -38,9 +41,12 @@ pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
         }
 
         let state_r = sim.read().unwrap();
+        //let sensed_z = state_r.sensed.accel.get_val()[2];
+        //println!("time {}  sensed accel_z {}", time_check, sensed_z );
+
         //Fast cadence: 400Hz approx
         if (0 ==  *last_fast_cadence_send) ||
-            (state_r.elapsed_since(*last_fast_cadence_send) > 2500) {
+            (state_r.elapsed_since(*last_fast_cadence_send) > FAST_CADENCE_MICROSECONDS) {
             let msgs = collect_fast_cadence_sensors(&state_r);
             msg_list.extend(msgs);
             *last_fast_cadence_send = time_check;
@@ -92,6 +98,7 @@ pub fn reporting_loop(sim:Arc<RwLock<Simulato>>, conn:Arc<Box<UorbConnection+Sen
 
     loop {
         thread::sleep(Duration::from_micros(100));
+        //thread::yield_now();
         let msg_list = collect_messages(&sim,
             &mut last_slow_cadence_send,
             &mut last_med_cadence_send,
@@ -117,6 +124,24 @@ fn send_all_messages( conn: &UorbConnection,  msg_list: Vec<(UorbHeader, UorbMes
         conn.send(&hdr, &msg)?;
     }
     Ok(())
+}
+
+
+fn gen_wrapped_vehicle_attitude(state: &Simulato)-> (UorbHeader, UorbMessage) {
+    let msg_data = gen_wrapped_vehicle_attitude_data(state);
+    msg_data.gen_ready_pair(0, state.get_simulated_time())
+}
+
+fn gen_wrapped_vehicle_attitude_data(state: &Simulato)-> VehicleAttitudeData {
+    VehicleAttitudeData {
+        timestamp: state.get_simulated_time(),
+        rollspeed: state.vehicle_state.kinematic.body_angular_velocity[0],
+        pitchspeed: state.vehicle_state.kinematic.body_angular_velocity[1],
+        yawspeed: state.vehicle_state.kinematic.body_angular_velocity[2],
+        q: [0.0, 0.0, 0.0, 1.0], //TODO upright quaternion always
+        delta_q_reset: [0.0, 0.0, 0.0, 0.0],
+        quat_reset_counter: 0,
+    }
 }
 
 
@@ -160,8 +185,11 @@ fn gen_wrapped_gps_position_msg(state: &Simulato) -> (UorbHeader, UorbMessage) {
 
 fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
     //TODO ensure we use the same altitude that baro has already generated
-    let pos = state.sensed.gps.get_val();
-    let alt_mm = (pos.alt * 1E3) as i32;
+    let pos = state.sensed.gps.get_global_pos();
+    let vel = state.sensed.gps.get_velocity();
+    let alt_mm = (pos.alt_wgs84 * 1E3) as i32;
+
+    let vel_ned_ground_valid = vel[3] > GPS_HVEL_MINIMUM_VALID;
 
     VehicleGpsPositionData {
         timestamp: state.get_simulated_time(),
@@ -169,12 +197,12 @@ fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
 
         lat: (pos.lat * WHOLE_DEGREE_MULT) as i32,
         lon: (pos.lon * WHOLE_DEGREE_MULT) as i32,
-        alt: alt_mm,
-        alt_ellipsoid: 0,
+        alt: alt_mm, //TODO not strictly accurate-- AMSL not the same as above-ellipsoid
+        alt_ellipsoid: alt_mm, //accurate
 
         s_variance_m_s: 0.0,
         c_variance_rad: 0.0,
-        fix_type: 3, //3d
+        fix_type: 3, //3D
         eph: 0.01,
         epv: 0.01,
         hdop: 0.0,
@@ -183,13 +211,14 @@ fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
         noise_per_ms: 0,
         jamming_indicator: 0,
 
-        vel_m_s: 0.0,
-        vel_n_m_s: 0.0,
-        vel_e_m_s: 0.0,
-        vel_d_m_s: 0.0,
+        vel_n_m_s: if vel_ned_ground_valid { vel[0] } else {0.0},
+        vel_e_m_s: if vel_ned_ground_valid { vel[1] } else {0.0},
+        vel_d_m_s: vel[2],
+        vel_m_s:   if vel_ned_ground_valid { vel[3] } else {0.0},
+        vel_ned_valid: vel_ned_ground_valid,
 
-        cog_rad: 0.0,
-        vel_ned_valid: false,
+        //course over ground (cod) = atan2(y,x)
+        cog_rad: if vel_ned_ground_valid { vel[1].atan2(vel[0]) } else { 0.0  },
 
         timestamp_time_relative: 0,
         satellites_used: 11,
@@ -200,16 +229,16 @@ fn gen_gps_msg_data(state: &Simulato) -> VehicleGpsPositionData {
 
 
 const SIM_GYRO0_DEVICE_ID: u32 = 2293768;
-const SIM_GYRO1_DEVICE_ID: u32 = 3141593;
+//const SIM_GYRO1_DEVICE_ID: u32 = 3141593;
 
 fn gen_wrapped_sensor_gyro0(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_gyro_data(state, SIM_GYRO0_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
-fn gen_wrapped_sensor_gyro1(state: &Simulato) -> (UorbHeader, UorbMessage) {
-    let msg_data = gen_sensor_gyro_data(state, SIM_GYRO1_DEVICE_ID);
-    msg_data.gen_ready_pair(1, state.get_simulated_time())
-}
+//fn gen_wrapped_sensor_gyro1(state: &Simulato) -> (UorbHeader, UorbMessage) {
+//    let msg_data = gen_sensor_gyro_data(state, SIM_GYRO1_DEVICE_ID);
+//    msg_data.gen_ready_pair(1, state.get_simulated_time())
+//}
 
 const GYRO_REBASE_FACTOR:f32 =  8388463.696;
 
@@ -241,17 +270,17 @@ fn gen_sensor_gyro_data(state: &Simulato, device_id: u32) -> SensorGyroData {
 
 
 const SIM_ACCEL0_DEVICE_ID:u32 = 1376264;
-const SIM_ACCEL1_DEVICE_ID:u32 = 1310728;
+//const SIM_ACCEL1_DEVICE_ID:u32 = 1310728;
 
 fn gen_wrapped_sensor_accel0(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_sensor_accel_data(state, SIM_ACCEL0_DEVICE_ID);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
 }
 
-fn gen_wrapped_sensor_accel1(state: &Simulato) -> (UorbHeader, UorbMessage) {
-    let msg_data = gen_sensor_accel_data(state, SIM_ACCEL1_DEVICE_ID);
-    msg_data.gen_ready_pair(1, state.get_simulated_time())
-}
+//fn gen_wrapped_sensor_accel1(state: &Simulato) -> (UorbHeader, UorbMessage) {
+//    let msg_data = gen_sensor_accel_data(state, SIM_ACCEL1_DEVICE_ID);
+//    msg_data.gen_ready_pair(1, state.get_simulated_time())
+//}
 
 //const ACCEL_REBASE_FACTOR:f32 = (ACCEL_ONE_G / 1E3);
 
@@ -268,7 +297,7 @@ fn gen_sensor_accel_data(state: &Simulato, device_id: u32) -> SensorAccelData {
         x: xacc,
         y: yacc,
         z: zacc,
-        integral_dt: 0, //4000,
+        integral_dt: 0, //4000, //TODO maybe FAST_CADENCE_MICROSECONDS
         x_integral: 0.0, //3.46E-05,
         y_integral: 0.0, //1.85E-05,
         z_integral: 0.0, //3.92E-02,
@@ -368,7 +397,7 @@ fn gen_timesync_status_data(state: &Simulato) -> TimesyncStatusData {
     }
 }
 
-const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(300);
+//const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(300);
 //const DURA_UNTIL_ACCEL1_FAILURE:Duration = Duration::from_secs(120);
 
 /// Gyro rate should be 400 Hz
@@ -376,13 +405,13 @@ const DURA_UNTIL_ACCEL0_FAILURE:Duration = Duration::from_secs(300);
 fn collect_fast_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage)> {
 
     let mut msg_list = vec![];
-    if state.elapsed() < DURA_UNTIL_ACCEL0_FAILURE {
+    //if state.elapsed() < DURA_UNTIL_ACCEL0_FAILURE {
         msg_list.push(gen_wrapped_sensor_accel0(state));
-        msg_list.push( gen_wrapped_sensor_accel1(state) );
-    }
+        //msg_list.push( gen_wrapped_sensor_accel1(state) );
+    //}
 
-    msg_list.push( gen_wrapped_sensor_gyro0(state) );
-    msg_list.push( gen_wrapped_sensor_gyro1(state) );
+   msg_list.push( gen_wrapped_sensor_gyro0(state) );
+   // msg_list.push( gen_wrapped_sensor_gyro1(state) );
 
 //    let gyrobes = state.sensed.gyro.get_val();
 //    let accelbes = state.sensed.accel.get_val();
@@ -408,6 +437,8 @@ fn collect_med_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage
     msg_list.push( gen_wrapped_sensor_mag(state) );
     msg_list.push( gen_wrapped_sensor_baro(state) );
     msg_list.push( gen_wrapped_differential_pressure(state) );
+    //TODO for now we force the attitude to upright
+    msg_list.push( gen_wrapped_vehicle_attitude(state) );
     msg_list
 }
 
