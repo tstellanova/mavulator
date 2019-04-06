@@ -127,6 +127,24 @@ fn send_all_messages( conn: &UorbConnection,  msg_list: Vec<(UorbHeader, UorbMes
 }
 
 
+fn gen_wrapped_vehicle_attitude(state: &Simulato)-> (UorbHeader, UorbMessage) {
+    let msg_data = gen_wrapped_vehicle_attitude_data(state);
+    msg_data.gen_ready_pair(0, state.get_simulated_time())
+}
+
+fn gen_wrapped_vehicle_attitude_data(state: &Simulato)-> VehicleAttitudeData {
+    VehicleAttitudeData {
+        timestamp: state.get_simulated_time(),
+        rollspeed: state.vehicle_state.kinematic.body_angular_velocity[0],
+        pitchspeed: state.vehicle_state.kinematic.body_angular_velocity[1],
+        yawspeed: state.vehicle_state.kinematic.body_angular_velocity[2],
+        q: [0.0, 0.0, 0.0, 1.0], //TODO upright quaternion always
+        delta_q_reset: [0.0, 0.0, 0.0, 0.0],
+        quat_reset_counter: 0,
+    }
+}
+
+
 fn gen_wrapped_battery_status(state: &Simulato) -> (UorbHeader, UorbMessage) {
     let msg_data = gen_battery_status_data(state);
     msg_data.gen_ready_pair(0, state.get_simulated_time())
@@ -419,6 +437,8 @@ fn collect_med_cadence_sensors(state: &Simulato) -> Vec<(UorbHeader, UorbMessage
     msg_list.push( gen_wrapped_sensor_mag(state) );
     msg_list.push( gen_wrapped_sensor_baro(state) );
     msg_list.push( gen_wrapped_differential_pressure(state) );
+    //TODO for now we force the attitude to upright
+    msg_list.push( gen_wrapped_vehicle_attitude(state) );
     msg_list
 }
 
