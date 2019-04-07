@@ -102,8 +102,8 @@ pub fn reporting_loop(sim:Arc<RwLock<Simulato>>, conn:Arc<Box<UorbConnection+Sen
     let mut last_fast_cadence_send:TimeBaseUnits = 0; //400Hz sensors
 
     loop {
-        thread::sleep(Duration::from_micros(100));
-        //thread::yield_now();
+        //thread::sleep(Duration::from_micros(100));
+        thread::yield_now();
         let msg_list = collect_messages(&sim,
             &mut last_slow_cadence_send,
             &mut last_med_cadence_send,
