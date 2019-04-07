@@ -20,7 +20,13 @@ const WHOLE_DEGREE_MULT: LatLonUnits = 1E7;
 /// The minimum GPS ground velocity that can be considered valid
 const GPS_HVEL_MINIMUM_VALID: SpeedUnits = 1.0;
 
+/// Timing for fast cadence sensor cadence: 400Hz approx (or greater)
 const FAST_CADENCE_MICROSECONDS: TimeBaseUnits = 2500;
+/// Timing for medium cadence sensors: 100Hz approx
+const MEDIUM_CADENCE_MICROSECONDS: TimeBaseUnits = 10000;
+/// Timing for slow cadence sensors: 5Hz approximately
+const SLOW_CADENCE_MICROSECONDS: TimeBaseUnits = 200000;
+
 
 //TODO collect_messages shouldn't really be pub , but is required for benchmarking?
 pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
@@ -44,7 +50,6 @@ pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
         //let sensed_z = state_r.sensed.accel.get_val()[2];
         //println!("time {}  sensed accel_z {}", time_check, sensed_z );
 
-        //Fast cadence: 400Hz approx
         if (0 ==  *last_fast_cadence_send) ||
             (state_r.elapsed_since(*last_fast_cadence_send) > FAST_CADENCE_MICROSECONDS) {
             let msgs = collect_fast_cadence_sensors(&state_r);
@@ -54,7 +59,7 @@ pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
 
         // Medium cadence: about 100Hz  10000 usec
         if (0 ==  *last_med_cadence_send) ||
-            (state_r.elapsed_since(*last_med_cadence_send) > 10000) {
+            (state_r.elapsed_since(*last_med_cadence_send) > MEDIUM_CADENCE_MICROSECONDS) {
             let msgs = collect_med_cadence_sensors(&state_r);
             msg_list.extend(msgs);
             *last_med_cadence_send = time_check;
@@ -62,7 +67,7 @@ pub fn collect_messages(sim: &Arc<RwLock<Simulato>>,
 
         //Slow cadence: 1Hz approx
         if (0 ==  *last_slow_cadence_send) ||
-            (state_r.elapsed_since(*last_slow_cadence_send) > 100000) {
+            (state_r.elapsed_since(*last_slow_cadence_send) > SLOW_CADENCE_MICROSECONDS) {
             let msgs = collect_slow_cadence_sensors(&state_r);
             msg_list.extend(msgs);
             *last_slow_cadence_send = time_check;
